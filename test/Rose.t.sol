@@ -109,7 +109,7 @@ contract RoseTest is Test {
         assertGe(r0Prime, r0);
         assertLe(r1Prime, r1);
         assertGe(alphaPrime, alpha);
-        assertGe(r1 * 1e6 / r0, r1Prime * 1e6 / r0Prime);
+        assertGe(r0Prime * 1e6 / r1Prime, r0 * 1e6 / r1);
     }
 
     function test_sell(uint value) public {
@@ -131,7 +131,7 @@ contract RoseTest is Test {
         assertLe(r0Prime, r0);
         assertGe(r1Prime, r1);
         assertGe(alpha, alphaPrime);
-        assertGe(r1Prime * 1e6 / r0Prime, r1 * 1e6 / r0);
+        assertLe(r0Prime * 1e6 / r1Prime, r0 * 1e6 / r1);
     }
 
     function test_collect(uint value) public {
