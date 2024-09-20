@@ -142,7 +142,7 @@ contract Rose {
 
 
     /**
-      * @notice Receive is the entry point for deposits.
+      * @notice Deposit is the entry point for entering the Rose bonding-curve
       *         upon receiving ETH, the rose contract computes the amount out `y`
       *         using the [skew trading function](https://github.com/RedRoseMoney/Rose).
       *         The result is an asymmetric bonding curve that can optimise for price
@@ -166,7 +166,7 @@ contract Rose {
       *      After computing the swapped amount `y` on cut reserves, the LP provides the
       *      maximum possible liquidity from the withdrawn amount at the new market rate.
       */
-    receive() external payable {
+    function deposit(uint outMin) external payable returns (uint) {
         uint _ALPHA_INIT = ALPHA_INIT;
         uint _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
@@ -178,14 +178,13 @@ contract Rose {
             mstore(ptr, caller())
             mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
             let CALLER_BALANCE_SLOT := keccak256(ptr, 0x40)
-            let _cumulatedFees := sload(CUMULATED_FEES_SLOT)
             /*
              * x  = msg.value
              * R₀ = token₀ reserves
              * R₁ = token₁ reserves
              */
             let x := callvalue()
-            let r0 := sub(selfbalance(), _cumulatedFees)
+            let r0 := sub(sub(selfbalance(), sload(CUMULATED_FEES_SLOT)), callvalue())
             let r1 := sload(_SELF_BALANCE_SLOT)
             /*
              * Compute the skew factor α(t)
@@ -214,28 +213,147 @@ contract Rose {
             let r1Prime := div(mul(div(mul(alphaR1Prime, 1000000), alphaR0Prime), r0Prime), 1000000)
             let deltaToken1 := sub(div(mul(r0, r1), r0Prime), r1Prime)
             /*
+             * Ensures that the amount out y is >= outMin
+             */
+            if gt(outMin, y) {revert(0, 0)}
+            /*
              * Update the market reserves to (R₀′, R₁′) then update balances
              */
-            sstore(_SELF_BALANCE_SLOT, add(r1Prime, _cumulatedFees))
+            sstore(_SELF_BALANCE_SLOT, r1Prime)
             let balanceOfCaller := sload(CALLER_BALANCE_SLOT)
             sstore(CALLER_BALANCE_SLOT, add(balanceOfCaller, y))
             let balanceOfTreasury := sload(_TREASURY_BALANCE_SLOT)
             sstore(_TREASURY_BALANCE_SLOT, add(balanceOfTreasury, deltaToken1))
-            // emit Transfer event
+            /*
+             * emit Transfer event
+             */
             mstore(ptr, address())
             mstore(add(ptr, 0x20), caller())
             mstore(add(ptr, 0x40), y)
             log3(ptr, 0x60, _TRANSFER_EVENT_SIG, address(), caller())
-            // emit Buy event
-            mstore(ptr, caller())
-            mstore(add(ptr, 0x20), x)
-            mstore(add(ptr, 0x40), y)
-            log2(ptr, 0x60, _BUY_EVENT_SIG, caller())
+            /*
+             * return amount out
+             */
+            mstore(ptr, y)
+            return(ptr, 0x20)
+        }
+    }
+
+    function withdraw(uint value, uint outMin) external payable returns (uint) {
+        uint _PHI_FACTOR = PHI_FACTOR;
+        bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
+        bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
+        bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
+        assembly {
+            let ptr := mload(0x40)
+            let from := caller()
+            mstore(ptr, from)
+            mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
+            let FROM_BALANCE_SLOT := keccak256(ptr, 0x40)
+            /*
+             * check that caller has enough funds
+             */
+            let balanceFrom := sload(FROM_BALANCE_SLOT)
+            if lt(balanceFrom, value) { revert(0, 0) }
+            let _cumulatedFees := sload(CUMULATED_FEES_SLOT)
+            /*
+             *  load market's reserves (R₀, R₁)
+             */
+            let r0 := sub(selfbalance(), _cumulatedFees)
+            let r1 := sload(_SELF_BALANCE_SLOT)
+            let y := value
+            /*
+             * Only allow sell orders under 5% of Rose's liquidity
+             * to prevent divergence.
+             */
+            if gt(y, div(r1,20)) { revert(0, 0) }
+            /*
+             * the rose sent is sold for ETH using the CP formula:
+             *     y = (R₁ - K / (R₀ + x)) * ϕfactor
+             *
+             *  R₁′ = R₁ + y
+             *  R₀′ = K / R₁′
+             *  x = R₁ - R₁′
+             *  ϕ = x * ϕfactor
+             */
+            let r1prime := add(r1, y)
+            let x := sub(r0, div(mul(r0, r1), r1prime))
+            let phi := div(mul(x, _PHI_FACTOR), 1000000)
+            let xOut := sub(x, phi)
+            /*
+             * Ensures that the amount out xOut >= outMin
+             */
+            if gt(outMin, xOut) {revert(0, 0)}
+            /*
+             * increment cumulated fees by ϕ
+             */
+            sstore(CUMULATED_FEES_SLOT, add(_cumulatedFees, phi))
+            /*
+             * Transfer x-ϕ ETH to the seller's address
+             */
+            if iszero(call(gas(), from, xOut, 0, 0, 0, 0)) { revert(0, 0) }
+            /*
+             * decrease sender's balance
+             */
+            sstore(FROM_BALANCE_SLOT, sub(balanceFrom, value))
+            /*
+             * increment recipient's balance
+             */
+            sstore(_SELF_BALANCE_SLOT, add(sload(_SELF_BALANCE_SLOT), value))
+            /*
+             * emit Transfer event
+             */
+            mstore(ptr, from)
+            mstore(add(ptr, 0x20), address())
+            mstore(add(ptr, 0x40), value)
+            log3(ptr, 0x60, _TRANSFER_EVENT_SIG, from, address())
+            /*
+             * return amount out
+             */
+            mstore(ptr, xOut)
+            return(ptr, 0x20)
+        }
+    }
+
+    function quoteDeposit(uint value) public view returns (uint) {
+        uint _ALPHA_INIT = ALPHA_INIT;
+        uint _R1_INIT = R1_INIT;
+        bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
+        assembly {
+            let ptr := mload(0x40)
+            let r0 := sub(selfbalance(), sload(CUMULATED_FEES_SLOT))
+            let r1 := sload(_SELF_BALANCE_SLOT)
+            let r1InitR1Ratio := div(mul(r1, 1000000), _R1_INIT)
+            let inverseAlpha := div(mul(_ALPHA_INIT, r1InitR1Ratio), 1000000)
+            let alpha := sub(1000000, inverseAlpha)
+            let alphaR0 := div(mul(alpha, r0), 1000000)
+            let alphaR1 := div(mul(alpha, r1), 1000000)
+            let alphaR0Prime := add(alphaR0, value)
+            let alphaR1Prime := div(mul(alphaR0, alphaR1), alphaR0Prime)
+            let y := sub(alphaR1, alphaR1Prime)
+            mstore(ptr, y)
+            return(ptr, 0x20)
+        }
+    }
+
+    function quoteWithdraw(uint value) public view returns (uint) {
+        uint _PHI_FACTOR = PHI_FACTOR;
+        bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
+        assembly {
+            let ptr := mload(0x40)
+            let r0 := sub(selfbalance(), sload(CUMULATED_FEES_SLOT))
+            let r1 := sload(_SELF_BALANCE_SLOT)
+            let r1prime := add(r1, value)
+            let x := sub(r0, div(mul(r0, r1), r1prime))
+            let phi := div(mul(x, _PHI_FACTOR), 1000000)
+            let xOut := sub(x, phi)
+            mstore(ptr, xOut)
+            return(ptr, 0x20)
         }
     }
 
     /**
-      * @notice Collects the cumulated withdrawfees and transfers them to the treasury.
+      * @notice Collects the cumulated withdraw fees and transfers them to the treasury.
       */
     function collect() external {
         address _TREASURY = TREASURY;
@@ -341,17 +459,13 @@ contract Rose {
      }
 
     /**
-      * @notice Extention of the ERC20 function with an added internal withdraw functionality
-      * for the `to == address(this)` case.
+      * @notice Efficient ERC20 transfer function
       *
       * @dev The caller must have sufficient balance to transfer the specified amount.
-      *      The withdraw function uses the traditional constant product formula R₀ * R₁ = K
       *
       * @param to The address to transfer to.
-      *           If `to` is the ROSE contract, the transfer is interpreted as a withdraw
       *
       * @param value The amount of rose to transfer.
-      *              If `to` is the ROSE contract, `value`is interpreted as the withdraw amount.
       *
       * @return true
       */
@@ -372,71 +486,39 @@ contract Rose {
             let balanceFrom := sload(FROM_BALANCE_SLOT)
             if lt(balanceFrom, value) { revert(0, 0) }
             /*
-             * Sell order case
-             * If the transfer recipient is the rose contract,
-             * the rose sent is sold for ETH using the CP formula:
-             *     y = (R₁ - K / (R₀ + x)) * ϕ
+             * decrease sender's balance
              */
-            if eq(address(), to) {
-                /*
-                 *  load market's reserves (R₀, R₁)
-                 */
-                let r0 := sub(selfbalance(), sload(CUMULATED_FEES_SLOT))
-                let r1 := sload(_SELF_BALANCE_SLOT)
-                let y := value
-                /*
-                 * Only allow sell orders under 5% of Rose's liquidity
-                 * to prevent divergence.
-                 */
-                if gt(y, div(r1,20)) { revert(0, 0) }
-                /*
-                 *  R₁′ = R₁ + y
-                 *  R₀′ = K / R₁′
-                 *  x = R₁ - R₁′
-                 *  ϕ = x * ϕfactor
-                 */
-                let r1prime := add(r1, y)
-                let x := sub(r0, div(mul(r0, r1), r1prime))
-                let phi := div(mul(x, _PHI_FACTOR), 1000000)
-                let xOut := sub(x, phi)
-                // increment cumulated fees by ϕ
-                sstore(CUMULATED_FEES_SLOT, add(sload(CUMULATED_FEES_SLOT), phi))
-                // Transfer x-ϕ ETH to the seller's address
-                if iszero(call(gas(), from, xOut, 0, 0, 0, 0)) { revert(0, 0) }
-                // emit Sell event
-                mstore(ptr, from)
-                mstore(add(ptr, 0x20), xOut)
-                mstore(add(ptr, 0x40), y)
-                log2(ptr, 0x60, _SELL_EVENT_SIG, from)
-            }
-            // decrease sender's balance
             sstore(FROM_BALANCE_SLOT, sub(balanceFrom, value))
-            // increment recipient's balance
+            /*
+             * increment recipient's balance
+             */
             sstore(TO_BALANCE_SLOT, add(sload(TO_BALANCE_SLOT), value))
-            // emit Transfer event
+            /*
+             * emit Transfer event
+             */
             mstore(ptr, from)
             mstore(add(ptr, 0x20), to)
             mstore(add(ptr, 0x40), value)
             log3(ptr, 0x60, _TRANSFER_EVENT_SIG, from, to)
-            // return true
+            /*
+             * return true
+             */
             mstore(ptr, 1)
             return(ptr, 0x20)
         }
     }
 
     /**
-      * @notice Extention of the ERC20 function with an added internal withdraw functionality
-      * for the `to == address(this)` case.
+      * @notice Efficient ERC20 transferFrom function
       *
       * @dev The caller must have sufficient allowance to transfer the specified amount.
       *      From must have sufficient balance to transfer the specified amount.
       *
       * @param from The address to transfer from.
+      *
       * @param to The address to transfer to.
-      *           If `to` is the ROSE contract, the transfer is interpreted as a withdraw
       *
       * @param value The amount of rose to transfer.
-      *              If `to` is the ROSE contract, `value`is interpreted as the withdraw amount.
       *
       * @return true
       */
@@ -468,53 +550,23 @@ contract Rose {
             let balanceFrom := sload(FROM_BALANCE_SLOT)
             if lt(balanceFrom, value) { revert(0, 0) }
             /*
-             * Sell order case
-             * If the transfer recipient is the rose contract,
-             * the rose sent is sold for ETH using the CP formula:
-             *     y = R₁ - K / (R₀ + x)
+             * Decrease sender's balance
              */
-            if eq(address(), to) {
-                /*
-                 *  load market's reserves (R₀, R₁)
-                 */
-                let r0 := sub(selfbalance(), sload(CUMULATED_FEES_SLOT))
-                let r1 := sload(_SELF_BALANCE_SLOT)
-                let y := value
-                /*
-                 * Only allow sell orders under 2% of Rose's liquidity
-                 * to prevent divergence.
-                 */
-                if gt(y, div(r1,50)) { revert(0, 0) }
-                /*
-                 *  R₁′ = R₁ + y
-                 *  R₀′ = K / R₁′
-                 *  x = R₁ - R₁′
-                 *  ϕ = x * ϕfactor
-                 */
-                let r1prime := add(r1, y)
-                let x := sub(r0, div(mul(r0, r1), r1prime))
-                let phi := div(mul(x, _PHI_FACTOR), 1000000)
-                let xOut := sub(x, phi)
-                // increment cumulated fees by ϕ
-                sstore(CUMULATED_FEES_SLOT, add(sload(CUMULATED_FEES_SLOT), phi))
-                // Transfer x-ϕ ETH to the seller's address
-                if iszero(call(gas(), from, xOut, 0, 0, 0, 0)) { revert(0, 0) }
-                // emit Sell event
-                mstore(ptr, from)
-                mstore(add(ptr, 0x20), xOut)
-                mstore(add(ptr, 0x40), y)
-                log2(ptr, 0x60, _SELL_EVENT_SIG, from)
-            }
-            // decrease sender's balance
             sstore(FROM_BALANCE_SLOT, sub(balanceFrom, value))
-            // increment recipient's balance
+            /*
+             * Increment recipient's balance
+             */
             sstore(TO_BALANCE_SLOT, add(sload(TO_BALANCE_SLOT), value))
-            // Emit Transfer event
+            /*
+             * Emit Transfer event
+             */
             mstore(ptr, from)
             mstore(add(ptr, 0x20), to)
             mstore(add(ptr, 0x40), value)
             log3(ptr, 0x60, _TRANSFER_EVENT_SIG, from, to)
-            // Return true
+            /*
+             * Return true
+             */
             mstore(ptr, 1)
             return(ptr, 0x20)
         }
@@ -531,22 +583,26 @@ contract Rose {
             mstore(ptr, to)
             mstore(add(ptr, 0x20), ALLOWANCE_CALLER_SLOT)
             let ALLOWANCE_CALLER_TO_SLOT := keccak256(ptr, 0x40)
-            // store the new allowance value
+            /*
+             * Store the new allowance value
+             */
             sstore(ALLOWANCE_CALLER_TO_SLOT, value)
-            // emit Approval event
+            /*
+             * Emit Approval event
+             */
             mstore(ptr, owner)
             mstore(add(ptr, 0x20), to)
             mstore(add(ptr, 0x40), value)
             log3(ptr, 0x60, _APPROVAL_EVENT_SIG, owner, to)
-            // return true
+            /*
+             * Return true
+             */
             mstore(ptr, 1)
             return(ptr, 0x20)
         }
     }
 
-    function getCumulatedFees() public view returns (uint) {
-        return cumulatedFees;
-    }
+    receive() external payable {}
 
     function mint(address to, uint value) public {
         _balanceOf[to] += value;
