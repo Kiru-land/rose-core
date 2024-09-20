@@ -166,6 +166,8 @@ contract Rose {
       *      After computing the swapped amount `y` on cut reserves, the LP provides the
       *      maximum possible liquidity from the withdrawn amount at the new market rate.
       */
+    // Question: 'outMin' c'est l'amount de ROSE que tu as deduit de l'amount minimum de ROSE que le user a input moins le slippage c'est ca ?
+    // Uniswap eux ils input direct l'amount que le user veut acheter, puis un 'amountOutMin' qui est la quote moins le slippage.
     function deposit(uint outMin) external payable returns (uint) {
         uint _ALPHA_INIT = ALPHA_INIT;
         uint _R1_INIT = R1_INIT;
@@ -215,6 +217,7 @@ contract Rose {
             /*
              * Ensures that the amount out y is >= outMin
              */
+            // Question: C'est pas plutot lt(outMin, y) ? Si l'outMin est inferieur à ce que le constant product donne, on revert.
             if gt(outMin, y) {revert(0, 0)}
             /*
              * Update the market reserves to (R₀′, R₁′) then update balances
