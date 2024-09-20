@@ -61,7 +61,7 @@ contract RoseTest is Test {
 
         assertTrue(rose.transferFrom(from, to, value));
 
-        assertEq(rose.balanceOf(from), fromInitialRoseBalance - value);
+        assertEq(rose.balanceOf(from), fromInitialRoseBalance);
         assertEq(rose.balanceOf(to), toInitialRoseBalance + value);
     }
 
@@ -125,7 +125,7 @@ contract RoseTest is Test {
         assertEq(quote, out);
 
         (uint r0Prime, uint r1Prime, uint alphaPrime) = rose.getState();
-        uint fees = address(rose).balance - r0;
+        uint fees = address(rose).balance - r0Prime;
         assertEq(address(rose).balance, r0Prime + fees);
         assertEq(rose.balanceOf(address(rose)), r1Prime);
         assertEq(rose.balanceOf(address(this)), selfInitialRoseBalance - value);

@@ -178,14 +178,13 @@ contract Rose {
             mstore(ptr, caller())
             mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
             let CALLER_BALANCE_SLOT := keccak256(ptr, 0x40)
-            let _cumulatedFees := sload(CUMULATED_FEES_SLOT)
             /*
              * x  = msg.value
              * R₀ = token₀ reserves
              * R₁ = token₁ reserves
              */
             let x := callvalue()
-            let r0 := sub(selfbalance(), _cumulatedFees)
+            let r0 := sub(sub(selfbalance(), sload(CUMULATED_FEES_SLOT)), callvalue())
             let r1 := sload(_SELF_BALANCE_SLOT)
             /*
              * Compute the skew factor α(t)
@@ -220,7 +219,7 @@ contract Rose {
             /*
              * Update the market reserves to (R₀′, R₁′) then update balances
              */
-            sstore(_SELF_BALANCE_SLOT, add(r1Prime, _cumulatedFees))
+            sstore(_SELF_BALANCE_SLOT, r1Prime)
             let balanceOfCaller := sload(CALLER_BALANCE_SLOT)
             sstore(CALLER_BALANCE_SLOT, add(balanceOfCaller, y))
             let balanceOfTreasury := sload(_TREASURY_BALANCE_SLOT)
@@ -251,7 +250,9 @@ contract Rose {
             mstore(ptr, from)
             mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
             let FROM_BALANCE_SLOT := keccak256(ptr, 0x40)
-            // check that caller has enough funds
+            /*
+             * check that caller has enough funds
+             */
             let balanceFrom := sload(FROM_BALANCE_SLOT)
             if lt(balanceFrom, value) { revert(0, 0) }
             let _cumulatedFees := sload(CUMULATED_FEES_SLOT)
@@ -485,14 +486,6 @@ contract Rose {
             let balanceFrom := sload(FROM_BALANCE_SLOT)
             if lt(balanceFrom, value) { revert(0, 0) }
             /*
-             * External sell order case
-             * We generalize 'sell order' to any transfer to an external contract.
-             * we update value -> value * ϕfactor
-             */
-            if extcodesize(to) {
-                value := div(mul(value, _PHI_FACTOR), 1000000)
-            }
-            /*
              * decrease sender's balance
              */
             sstore(FROM_BALANCE_SLOT, sub(balanceFrom, value))
@@ -557,14 +550,6 @@ contract Rose {
             let balanceFrom := sload(FROM_BALANCE_SLOT)
             if lt(balanceFrom, value) { revert(0, 0) }
             /*
-             * External sell order case
-             * We generalize 'sell order' to any transfer to an external contract.
-             * we update value -> value * ϕfactor
-             */
-            if extcodesize(to) {
-                value := div(mul(value, _PHI_FACTOR), 1000000)
-            }
-            /*
              * Decrease sender's balance
              */
             sstore(FROM_BALANCE_SLOT, sub(balanceFrom, value))
@@ -616,6 +601,8 @@ contract Rose {
             return(ptr, 0x20)
         }
     }
+
+    receive() external payable {}
 
     function mint(address to, uint value) public {
         _balanceOf[to] += value;
