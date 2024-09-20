@@ -174,7 +174,6 @@ contract Rose {
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT = TREASURY_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
-        bytes32 _BUY_EVENT_SIG = BUY_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
             mstore(ptr, caller())
@@ -246,7 +245,6 @@ contract Rose {
         uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
-        bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
             let from := caller()
