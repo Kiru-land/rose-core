@@ -471,7 +471,6 @@ contract Rose {
       * @return true
       */
     function transfer(address to, uint256 value) public returns (bool) {
-        uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
         bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
@@ -524,7 +523,6 @@ contract Rose {
       * @return true
       */
     function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
         bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
