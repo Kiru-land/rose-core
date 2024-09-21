@@ -36,6 +36,7 @@ contract Rose {
     string public constant name = "Rose";
     string public constant symbol = "ROSE";
     uint8 public constant decimals = 18;
+    uint256 public immutable totalSupply;
 
     mapping(address => uint256) private _balanceOf;
     mapping(address => mapping(address => uint256)) private _allowance;
@@ -82,11 +83,13 @@ contract Rose {
     /**
       * @notice t=0 state
       */
-    constructor(uint _alpha, uint _phi, uint _r1Init, address _treasury) payable {
+    constructor(uint _alpha, uint _phi, uint _r1Init, address _treasury, uint256 _supply) payable {
         ALPHA_INIT = _alpha;
         PHI_FACTOR =  _phi;
         R1_INIT = _r1Init;
         TREASURY = _treasury;
+        totalSupply = _supply;
+        
 
         bytes32 _SELF_BALANCE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT;
@@ -103,6 +106,7 @@ contract Rose {
 
         SELF_BALANCE_SLOT = _SELF_BALANCE_SLOT;
         TREASURY_BALANCE_SLOT = _TREASURY_BALANCE_SLOT;
+        _mint(TREASURY, _supply);
     }
 
     //////////////////////////////////////////////////////////////
@@ -603,7 +607,7 @@ contract Rose {
 
     receive() external payable {}
 
-    function mint(address to, uint value) public {
+    function _mint(address to, uint value) internal {
         _balanceOf[to] += value;
     }
 }
