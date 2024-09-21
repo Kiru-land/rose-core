@@ -11,7 +11,7 @@ contract MockToken is ERC20 {
     }
 }
 
-contract OversubscribedTokenSaleTest is Test {
+contract SaleTest is Test {
     OversubscribedTokenSale public sale;
     MockToken public token;
     address public owner;

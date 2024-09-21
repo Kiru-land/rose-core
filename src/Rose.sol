@@ -36,7 +36,6 @@ contract Rose {
     string public constant name = "Rose";
     string public constant symbol = "ROSE";
     uint8 public constant decimals = 18;
-    uint256 public immutable totalSupply;
 
     mapping(address => uint256) private _balanceOf;
     mapping(address => mapping(address => uint256)) private _allowance;
@@ -88,8 +87,6 @@ contract Rose {
         PHI_FACTOR =  _phi;
         R1_INIT = _r1Init;
         TREASURY = _treasury;
-        totalSupply = _supply;
-        
 
         bytes32 _SELF_BALANCE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT;
