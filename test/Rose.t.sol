@@ -10,7 +10,7 @@ contract RoseTest is Test {
     uint public liquidityInit = 1e24;
 
     function setUp() public {
-        rose = new Rose{salt: "REDROSE", value: liquidityInit}(1e5, 1e4, liquidityInit, address(this));
+        rose = new Rose{salt: "REDROSE", value: liquidityInit}(1e5, 1e4, liquidityInit, address(this), 1e25);
     }
 
     function test_approve(address to, uint value) public {
@@ -27,7 +27,7 @@ contract RoseTest is Test {
         uint selfInitialRoseBalance = rose.balanceOf(address(this));
         uint toInitialRoseBalance = rose.balanceOf(to);
 
-        rose.mint(address(this), value);
+        mint(address(this), value);
         assertEq(rose.balanceOf(address(this)), selfInitialRoseBalance + value);
 
         assertTrue(rose.transfer(to, value));
@@ -38,7 +38,7 @@ contract RoseTest is Test {
 
     function testFail_transferNotEnoughBalance(address to, uint balance, uint value) public {
         vm.assume(value > balance);
-        rose.mint(address(this), balance);
+        mint(address(this), balance);
         
         assertTrue(rose.transfer(to, value));
     }
@@ -50,7 +50,7 @@ contract RoseTest is Test {
         uint fromInitialRoseBalance = rose.balanceOf(from);
         uint toInitialRoseBalance = rose.balanceOf(to);
 
-        rose.mint(from, value);
+        mint(from, value);
         assertEq(rose.balanceOf(from), fromInitialRoseBalance + value);
 
         vm.startPrank(from);
@@ -68,7 +68,7 @@ contract RoseTest is Test {
     function testFail_transferFromNotEnoughAllowance(address from, address to, uint allowance, uint value) public {
         vm.assume(value > 0);
         vm.assume(allowance < value);
-        rose.mint(from, value);
+        mint(from, value);
         
         vm.startPrank(from);
         rose.approve(address(this), allowance);
@@ -80,7 +80,7 @@ contract RoseTest is Test {
     function testFail_transferFromNotEnoughBalance(address from, address to, uint balance, uint value) public {
         vm.assume(from != address(rose));
         vm.assume(value > balance);
-        rose.mint(address(this), balance);
+        mint(address(this), balance);
 
         vm.startPrank(from);
         rose.approve(address(this), value);
@@ -115,7 +115,7 @@ contract RoseTest is Test {
 
     function test_sell(uint value) public {
         vm.assume(value <= rose.balanceOf(address(rose)) / 50);
-        rose.mint(address(this), value);
+        mint(address(this), value);
         uint selfInitialRoseBalance = rose.balanceOf(address(this));
         uint selfInitialWethBalance = address(this).balance;
         (uint r0, uint r1, uint alpha) = rose.getState();
@@ -139,7 +139,7 @@ contract RoseTest is Test {
 
     function test_collect(uint value) public {
         vm.assume(value <= rose.balanceOf(address(rose)) / 50);
-        rose.mint(address(this), value);
+        mint(address(this), value);
         assertEq(rose.balanceOf(address(this)), value);
         
         assertTrue(rose.transfer(address(rose), value));
@@ -155,6 +155,17 @@ contract RoseTest is Test {
 
         assertEq(roseInitialWethBalance, address(rose).balance + fees);
         assertEq(treasuryInitialWethBalance + fees, address(rose.TREASURY()).balance);
+    }
+
+    function mint(address to, uint value) internal {
+        bytes32 CALLER_BALANCE_SLOT;
+        assembly {
+            let ptr := mload(0x40)
+            mstore(ptr, caller())
+            mstore(add(ptr, 0x20), 0)
+            CALLER_BALANCE_SLOT := keccak256(ptr, 0x40)
+        }
+        vm.store(address(rose), CALLER_BALANCE_SLOT, bytes32(value));
     }
 
     receive() external payable {}

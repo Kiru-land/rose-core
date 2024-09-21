@@ -10,7 +10,7 @@ contract RoseScript is Script {
 
     function run() external {
         vm.startBroadcast();
-        rose = new Rose{salt: "REDROSE", value: 1e17}(1e5, 1e4, 1e17, tx.origin);
+        rose = new Rose{salt: "REDROSE", value: 1e17}(1e5, 1e4, 1e17, tx.origin, 1e25);
         vm.stopBroadcast();
     }
 }

@@ -97,13 +97,12 @@ contract Rose {
             _SELF_BALANCE_SLOT := keccak256(ptr, 0x40)
             mstore(ptr, _treasury)
             _TREASURY_BALANCE_SLOT := keccak256(ptr, 0x40)
-            // set the initial reserves
+            sstore(_TREASURY_BALANCE_SLOT, sub(_supply, _r1Init))
             sstore(_SELF_BALANCE_SLOT, _r1Init)
         }
 
         SELF_BALANCE_SLOT = _SELF_BALANCE_SLOT;
         TREASURY_BALANCE_SLOT = _TREASURY_BALANCE_SLOT;
-        _mint(TREASURY, _supply - _r1Init);
     }
 
     //////////////////////////////////////////////////////////////
@@ -602,8 +601,4 @@ contract Rose {
     }
 
     receive() external payable {}
-
-    function _mint(address to, uint value) internal {
-        _balanceOf[to] += value;
-    }
 }
