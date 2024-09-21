@@ -106,7 +106,7 @@ contract Rose {
 
         SELF_BALANCE_SLOT = _SELF_BALANCE_SLOT;
         TREASURY_BALANCE_SLOT = _TREASURY_BALANCE_SLOT;
-        _mint(TREASURY, _supply);
+        _mint(TREASURY, _supply - _r1Init);
     }
 
     //////////////////////////////////////////////////////////////
