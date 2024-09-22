@@ -65,7 +65,7 @@ contract SaleTest is Test {
         vm.prank(user1);
         vm.expectRevert();
         (bool success, ) = address(sale).call{value: 50 ether}("");
-        // User couldnt contribute after sale ended
+        // User couldn't contribute after sale ended
         assertFalse(success);
     }
 
@@ -84,9 +84,6 @@ contract SaleTest is Test {
     }
 
     function testClaimRefundWhenSoftCapNotReached(uint256 contribution1, uint256 contribution2) public {
-        console.log("user1 balance before contribution", user1.balance / 1e16);
-        console.log("user2 balance before contribution", user2.balance / 1e16);
-        // bound(contribution1 + contribution2, 1, SOFT_CAP);
         // Ensure the total contribution is less than SOFT_CAP
         uint256 maxTotalContribution = SOFT_CAP - 2; // Subtract 2 to ensure room for both contributions
     
@@ -119,37 +116,73 @@ contract SaleTest is Test {
 
         vm.prank(user2);
         sale.claim();
-        
+
         // User1 got refunded of their ETH
         assertEq(user1.balance, user1BalanceBefore + contribution1);
-        // // User1 has claimed
+        // User1 has claimed
         assertTrue(getHasClaimed(user1));
-        // // User2 got refunded of their ETH
+        // User2 got refunded of their ETH
         assertEq(user2.balance, user2BalanceBefore + contribution2);
         // User2 has claimed
         assertTrue(getHasClaimed(user2));
     }
 
-    function testClaimTokensWhenSoftCapReached() public {
+    function testClaimTokensWhenSoftCapReached(uint256 contribution1, uint256 contribution2) public {
+        // Ensure the total contribution is between SOFT_CAP and HARD_CAP
+        uint256 maxTotalContribution = HARD_CAP;
+
+        // Bound contribution1 between SOFT_CAP and maxTotalContribution - 1
+        contribution1 = bound(contribution1, SOFT_CAP, maxTotalContribution - 1);
+
+        // Bound contribution2 between 1 and the remaining amount
+        contribution2 = bound(contribution2, 1, maxTotalContribution - contribution1);
+
+        // Ensure contributions don't exceed user balances
+        contribution1 = bound(contribution1, SOFT_CAP, user1.balance);
+        contribution2 = bound(contribution2, 1, user2.balance);
+
         vm.prank(user1);
-        (bool success, ) = address(sale).call{value: 101 ether}("");
-        assertTrue(success);
+        (bool success1, ) = address(sale).call{value: contribution1}("");
+        assertTrue(success1);
+
+        vm.prank(user2);
+        (bool success2, ) = address(sale).call{value: contribution2}("");
+        assertTrue(success2);
 
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
 
-        uint256 balanceBefore = user1.balance;
+        uint256 user1BalanceBefore = user1.balance;
+        uint256 user2BalanceBefore = user2.balance;
+
         vm.prank(user1);
         sale.claim();
 
-        // User received his share of tokens
-        assertEq(token.balanceOf(user1), (sale.totalRaised() * sale.TO_SELL()) / getContribution(user1));
-        // User's ETH balance is unchanged
-        assertEq(user1.balance, balanceBefore);
-        // Sale contract has no tokens left
-        assertEq(token.balanceOf(address(sale)), 0);
-        // User has claimed
+        vm.prank(user2);
+        sale.claim();
+
+        // User1 received their share of tokens (allow for small rounding error)
+        uint256 expectedTokens1 = (contribution1 * sale.TO_SELL()) / sale.totalRaised();
+        uint256 actualTokens1 = token.balanceOf(user1);
+        assertApproxEqAbs(actualTokens1, expectedTokens1, 1e6);
+
+        // User1's ETH balance is unchanged
+        assertEq(user1.balance, user1BalanceBefore);
+        // User1 has claimed
         assertTrue(getHasClaimed(user1));
+
+        // User2 received their share of tokens (allow for small rounding error)
+        uint256 expectedTokens2 = (contribution2 * sale.TO_SELL()) / sale.totalRaised();
+        uint256 actualTokens2 = token.balanceOf(user2);
+        assertApproxEqAbs(actualTokens2, expectedTokens2, 1e6);
+
+        // User2's ETH balance is unchanged
+        assertEq(user2.balance, user2BalanceBefore);
+        // User2 has claimed
+        assertTrue(getHasClaimed(user2));
+
+        // Sale contract has no tokens left (or very small amount due to rounding)
+        assertLe(token.balanceOf(address(sale)), 1e9);
     }
 
     function testClaimTokensAndRefundWhenOversubscribed() public {
