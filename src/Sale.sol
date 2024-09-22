@@ -3,11 +3,11 @@ pragma solidity ^0.8.26;
 
 contract PublicSale {
 
-    address immutable TOKEN;
-    uint256 immutable TO_SELL;
-    uint256 immutable SOFT_CAP;
-    uint256 immutable HARD_CAP;
-    uint256 immutable SALE_END;
+    address public immutable TOKEN;
+    uint256 public immutable TO_SELL;
+    uint256 public immutable SOFT_CAP;
+    uint256 public immutable HARD_CAP;
+    uint256 public immutable SALE_END;
 
     uint256 public totalRaised; // slot 0
     bool public saleEnded; // slot 1
@@ -70,36 +70,38 @@ contract PublicSale {
             let hasClaimedSlot := keccak256(ptr, 0x40)
             if sload(hasClaimedSlot) { revert(0, 0) }
             sstore(hasClaimedSlot, 1)
+            let totalRaisedValue := sload(totalRaised.slot)
             /*
              * if the soft cap is not met, refund the entire allocation
              */
-            if lt(totalRaised.slot, _SOFT_CAP) {
+            if lt(totalRaisedValue, _SOFT_CAP) {
                 let refundSuccess := call(gas(), caller(), contributionAmount, 0, 0, 0, 0)
                 if iszero(refundSuccess) { revert(0, 0) }
             }
             /*
              * if the soft cap has been met, distribute the tokens proportionally to the individual contributions
              */
-            if not(lt(totalRaised.slot, _SOFT_CAP)) {
+            if iszero(lt(totalRaisedValue, _SOFT_CAP)) {
                 /*
                  * contributionRatio = contributionAmount / totalRaised
                  * toDistribute = contributionRatio * TO_SELL
                  */
-                let scaledRatio := div(mul(contributionAmount, 1000000), totalRaised.slot)
+                let scaledRatio := div(mul(contributionAmount, 1000000), totalRaisedValue)
                 let amountOut := div(mul(scaledRatio, _TO_SELL), 1000000)
                 mstore(ptr, shl(224, _TRANSFER_SELECTOR))
                 mstore(add(ptr, 0x04), caller())
                 mstore(add(ptr, 0x24), amountOut)
+                // Send tokens to the caller
                 let distributeSuccess := call(gas(), _TOKEN, 0, ptr, 0x44, 0, 0)
                 if iszero(distributeSuccess) { revert(0, 0) }
                 /*
                 * if the hard cap has been met, refund the excess contribution
                 */
-                if not(lt(totalRaised.slot, _HARD_CAP)) {
+                if iszero(lt(totalRaisedValue, _HARD_CAP)) {
                     /*
                     * excess = contributionRatio * (totalRaised - HARD_CAP)
                     */
-                    let excess := div(mul(scaledRatio, sub(totalRaised.slot, _HARD_CAP)), 1000000)
+                    let excess := div(mul(scaledRatio, sub(totalRaisedValue, _HARD_CAP)), 1000000)
                     let refundSuccess := call(gas(), caller(), excess, 0, 0, 0, 0)
                     if iszero(refundSuccess) { revert(0, 0) }
                 }
