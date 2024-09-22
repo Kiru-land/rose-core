@@ -36,8 +36,8 @@ contract SaleTest is Test {
 
         token.transfer(address(sale), INITIAL_SUPPLY);
 
-        vm.deal(user1, 150 ether);
-        vm.deal(user2, 150 ether);
+        vm.deal(user1, 250 ether);
+        vm.deal(user2, 250 ether);
     }
 
     function testInitialState() public {
@@ -54,7 +54,9 @@ contract SaleTest is Test {
         (bool success, ) = address(sale).call{value: 50 ether}("");
         assertTrue(success);
 
+        // Contribution is the raised amount
         assertEq(sale.totalRaised(), 50 ether);
+        // User's contribution has been added
         assertEq(getContribution(user1), 50 ether);
     }
 
@@ -63,17 +65,20 @@ contract SaleTest is Test {
         vm.prank(user1);
         vm.expectRevert();
         (bool success, ) = address(sale).call{value: 50 ether}("");
+        // User couldnt contribute after sale ended
         assertFalse(success);
     }
 
     function testEndSale() public {
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
+        // Sale is ended
         assertTrue(sale.saleEnded());
     }
 
     function testFailSaleFailsBeforeEndTime() public {
         vm.warp(block.timestamp + DURATION - 1);
+        // Reverts because sale is not ended
         vm.expectRevert();
         sale.endSale();
     }
@@ -89,8 +94,9 @@ contract SaleTest is Test {
         uint256 balanceBefore = user1.balance;
         vm.prank(user1);
         sale.claim();
-
-        assertEq(user1.balance - balanceBefore, 50 ether);
+        // User got refunded of their ETH
+        assertEq(user1.balance, balanceBefore + 50 ether);
+        // User has claimed
         assertTrue(getHasClaimed(user1));
     }
 
@@ -102,42 +108,41 @@ contract SaleTest is Test {
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
 
-        console.log("balanceOf user1", token.balanceOf(user1));
-        console.log("balance of sale", token.balanceOf(address(sale)));
-        console.log("user eth balance after deposit", user1.balance / 1e18);
-        console.log("balanceOf sale", address(sale).balance / 1e18);
-        console.log("soft cap", sale.SOFT_CAP() / 1e18);
-        console.log("hard cap", sale.HARD_CAP() / 1e18);
-        console.log("total raised", sale.totalRaised() / 1e18);
-
+        uint256 balanceBefore = user1.balance;
         vm.prank(user1);
         sale.claim();
 
-        
-
-        // assertGt(token.balanceOf(user1), tokenBalanceBefore);
-        // assertTrue(getHasClaimed(user1));
+        // User received his share of tokens
+        assertEq(token.balanceOf(user1), (sale.totalRaised() * sale.TO_SELL()) / getContribution(user1));
+        // User's ETH balance is unchanged
+        assertEq(user1.balance, balanceBefore);
+        // Sale contract has no tokens left
+        assertEq(token.balanceOf(address(sale)), 0);
+        // User has claimed
+        assertTrue(getHasClaimed(user1));
     }
 
     function testClaimTokensAndRefundWhenOversubscribed() public {
+        uint256 contribution = 250 ether;
         vm.prank(user1);
-        (bool success, ) = address(sale).call{value: 100 ether}("");
-        assertTrue(success);
-        vm.prank(user2);
-        (success, ) = address(sale).call{value: 150 ether}("");
+        (bool success, ) = address(sale).call{value: contribution}("");
         assertTrue(success);
 
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
 
-        vm.prank(user2);
-        uint256 balanceBefore = user2.balance;
-        uint256 tokenBalanceBefore = token.balanceOf(user2);
+        uint256 balanceBefore = user1.balance;
+        vm.prank(user1);
         sale.claim();
 
-        assertGt(user2.balance, balanceBefore);
-        assertGt(token.balanceOf(user2), tokenBalanceBefore);
-        assertTrue(getHasClaimed(user2));
+        // User received his share of tokens
+        assertEq(token.balanceOf(user1), (sale.totalRaised() * sale.TO_SELL()) / getContribution(user1));
+        // User has been refunded of their excess ETH
+        assertEq(user1.balance, contribution - address(sale).balance);
+        // Sale contract has no tokens left
+        assertEq(token.balanceOf(address(sale)), 0);
+        // User has claimed
+        assertTrue(getHasClaimed(user1));
     }
 
     function testFailCannotClaimTwice() public {
@@ -151,8 +156,8 @@ contract SaleTest is Test {
         vm.prank(user1);
         sale.claim();
 
-        vm.expectRevert();
         vm.prank(user1);
+        vm.expectRevert();
         sale.claim();
     }
 
@@ -164,6 +169,11 @@ contract SaleTest is Test {
     //     vm.prank(user1);
     //     sale.claim();
     // }
+
+
+
+
+
 
     function getContribution(address addr) public view returns (uint256) {
         bytes32 CONTRIB_SLOT;
