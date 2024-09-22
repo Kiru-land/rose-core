@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 // TODO: a way to collect the ETH to TOKEN.TREASURY(), or a way to permisionlessly add liquidity to the pool and keep some
+// TODO: keep a small part of the ETH in the contract in case of refunds
 
 contract PublicSale {
 
@@ -88,8 +89,9 @@ contract PublicSale {
                  * contributionRatio = contributionAmount / totalRaised
                  * toDistribute = contributionRatio * TO_SELL
                  */
-                let scaledRatio := div(mul(contributionAmount, 1000000), totalRaisedValue)
-                let amountOut := div(mul(scaledRatio, _TO_SELL), 1000000)
+                let scalingFactor := 1000000000000000000 // 10^18    
+                let scaledRatio := div(mul(contributionAmount, scalingFactor), totalRaisedValue)
+                let amountOut := div(mul(scaledRatio, _TO_SELL), scalingFactor)
                 mstore(ptr, _TRANSFER_SELECTOR)
                 mstore(add(ptr, 0x04), caller())
                 mstore(add(ptr, 0x24), amountOut)
@@ -103,7 +105,7 @@ contract PublicSale {
                     /*
                     * excess = contributionRatio * (totalRaised - HARD_CAP)
                     */
-                    let excess := div(mul(scaledRatio, sub(totalRaisedValue, _HARD_CAP)), 1000000)
+                    let excess := div(mul(scaledRatio, sub(totalRaisedValue, _HARD_CAP)), scalingFactor)
                     let refundSuccess := call(gas(), caller(), excess, 0, 0, 0, 0)
                     if iszero(refundSuccess) { revert(0, 0) }
                 }
