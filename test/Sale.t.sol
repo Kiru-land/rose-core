@@ -83,21 +83,51 @@ contract SaleTest is Test {
         sale.endSale();
     }
 
-    function testClaimRefundWhenSoftCapNotReached() public {
+    function testClaimRefundWhenSoftCapNotReached(uint256 contribution1, uint256 contribution2) public {
+        console.log("user1 balance before contribution", user1.balance / 1e16);
+        console.log("user2 balance before contribution", user2.balance / 1e16);
+        // bound(contribution1 + contribution2, 1, SOFT_CAP);
+        // Ensure the total contribution is less than SOFT_CAP
+        uint256 maxTotalContribution = SOFT_CAP - 2; // Subtract 2 to ensure room for both contributions
+    
+        // Bound contribution1 between 1 and maxTotalContribution - 1
+        contribution1 = bound(contribution1, 1, maxTotalContribution - 1);
+    
+        // Bound contribution2 between 1 and the remaining amount
+        contribution2 = bound(contribution2, 1, maxTotalContribution - contribution1);
+
+        // Ensure contributions don't exceed user balances
+        contribution1 = bound(contribution1, 1, user1.balance);
+        contribution2 = bound(contribution2, 1, user2.balance);
+        
         vm.prank(user1);
-        (bool success, ) = address(sale).call{value: 50 ether}("");
-        assertTrue(success);
+        (bool success1, ) = address(sale).call{value: contribution1}("");
+        assertTrue(success1);
+
+        vm.prank(user2);
+        (bool success2, ) = address(sale).call{value: contribution2}("");
+        assertTrue(success2);
 
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
 
-        uint256 balanceBefore = user1.balance;
+        uint256 user1BalanceBefore = user1.balance;
+        uint256 user2BalanceBefore = user2.balance;
+
         vm.prank(user1);
         sale.claim();
-        // User got refunded of their ETH
-        assertEq(user1.balance, balanceBefore + 50 ether);
-        // User has claimed
+
+        vm.prank(user2);
+        sale.claim();
+        
+        // User1 got refunded of their ETH
+        assertEq(user1.balance, user1BalanceBefore + contribution1);
+        // // User1 has claimed
         assertTrue(getHasClaimed(user1));
+        // // User2 got refunded of their ETH
+        assertEq(user2.balance, user2BalanceBefore + contribution2);
+        // User2 has claimed
+        assertTrue(getHasClaimed(user2));
     }
 
     function testClaimTokensWhenSoftCapReached() public {
