@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+// TODO: a way to collect the ETH to TOKEN.TREASURY(), or a way to permisionlessly add liquidity to the pool and keep some
+
 contract PublicSale {
 
     address public immutable TOKEN;
@@ -88,7 +90,7 @@ contract PublicSale {
                  */
                 let scaledRatio := div(mul(contributionAmount, 1000000), totalRaisedValue)
                 let amountOut := div(mul(scaledRatio, _TO_SELL), 1000000)
-                mstore(ptr, shl(224, _TRANSFER_SELECTOR))
+                mstore(ptr, _TRANSFER_SELECTOR)
                 mstore(add(ptr, 0x04), caller())
                 mstore(add(ptr, 0x24), amountOut)
                 // Send tokens to the caller
