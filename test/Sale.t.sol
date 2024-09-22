@@ -145,7 +145,7 @@ contract SaleTest is Test {
         assertTrue(getHasClaimed(user1));
     }
 
-    function testFailCannotClaimTwice() public {
+    function testCannotClaimTwice() public {
         vm.prank(user1);
         (bool success, ) = address(sale).call{value: 5 ether}("");
         assertTrue(success, "Contribution failed");
@@ -154,21 +154,24 @@ contract SaleTest is Test {
         sale.endSale();
 
         vm.prank(user1);
+        // Claim first time
         sale.claim();
 
         vm.prank(user1);
+        // Claim second time and fail
         vm.expectRevert();
         sale.claim();
     }
 
-    // function testFailCannotClaimIfNotContributed() public {
-    //     vm.warp(block.timestamp + DURATION);
-    //     sale.endSale();
+    function testCannotClaimIfNotContributed() public {
+        vm.warp(block.timestamp + DURATION);
+        sale.endSale();
 
-    //     vm.expectRevert();
-    //     vm.prank(user1);
-    //     sale.claim();
-    // }
+        vm.prank(user1);
+        // Cannot claim if not contributed
+        vm.expectRevert();
+        sale.claim();
+    }
 
 
 
