@@ -131,7 +131,6 @@ contract SaleTest is Test {
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
 
-        uint256 balanceBefore = user1.balance;
         vm.prank(user1);
         sale.claim();
 
@@ -178,6 +177,7 @@ contract SaleTest is Test {
 
 
 
+    // ***** UTILS *****
     function getContribution(address addr) public view returns (uint256) {
         bytes32 CONTRIB_SLOT;
         assembly {
