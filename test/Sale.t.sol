@@ -36,8 +36,8 @@ contract SaleTest is Test {
 
         token.transfer(address(sale), INITIAL_SUPPLY);
 
-        vm.deal(user1, 250 ether);
-        vm.deal(user2, 250 ether);
+        vm.deal(user1, 1000 ether);
+        vm.deal(user2, 1000 ether);
     }
 
     function testInitialState() public {
@@ -185,26 +185,92 @@ contract SaleTest is Test {
         assertLe(token.balanceOf(address(sale)), 1e9);
     }
 
-    function testClaimTokensAndRefundWhenOversubscribed() public {
-        uint256 contribution = 250 ether;
+    function testClaimTokensAndRefundWhenOversubscribed(uint256 totalContribution, uint256 split) public {
+        // Define the minimum and maximum total contributions
+        uint256 minTotalContribution = HARD_CAP + 3;
+        uint256 maxTotalContribution = (HARD_CAP * 2) - 1;
+
+        // Bound totalContribution between minTotalContribution and maxTotalContribution
+        totalContribution = bound(totalContribution, minTotalContribution, maxTotalContribution);
+
+        // Bound split between 1 and 9999 (representing 0.01% to 99.99%)
+        split = bound(split, 1, 9999);
+
+        // Calculate contributions based on split percentage
+        uint256 contribution1 = (totalContribution * split) / 10000;
+        uint256 contribution2 = totalContribution - contribution1;
+
+        // Ensure contributions are at least 1 wei and do not exceed user balances
+        contribution1 = bound(contribution1, 1, user1.balance);
+        contribution2 = bound(contribution2, 1, user2.balance);
+
+        // Ensure totalContribution matches the sum of contributions
+        vm.assume(contribution1 + contribution2 == totalContribution);
+
+        console.log("contribution1", contribution1 / 1e15);
+        console.log("contribution2", contribution2 / 1e15);
+        console.log("totalContribution", totalContribution / 1e15);
+        console.log("HARD_CAP", HARD_CAP / 1e15);
+
+        // Assertions to verify our conditions
+        assertTrue(totalContribution < HARD_CAP * 2, "Total contribution should be less than HARD_CAP * 2");
+        assertTrue(totalContribution > HARD_CAP + 2, "Total contribution should be greater than HARD_CAP + 2");
+        assertTrue(contribution1 <= user1.balance, "Contribution1 should not exceed user1 balance");
+        assertTrue(contribution2 <= user2.balance, "Contribution2 should not exceed user2 balance");
+
         vm.prank(user1);
-        (bool success, ) = address(sale).call{value: contribution}("");
-        assertTrue(success);
+        (bool success1, ) = address(sale).call{value: contribution1}("");
+        assertTrue(success1);
+
+        vm.prank(user2);
+        (bool success2, ) = address(sale).call{value: contribution2}("");
+        assertTrue(success2);
 
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
 
+        uint256 user1BalanceBefore = user1.balance;
+        uint256 user2BalanceBefore = user2.balance;
+
         vm.prank(user1);
         sale.claim();
 
-        // User received his share of tokens
-        assertEq(token.balanceOf(user1), (sale.totalRaised() * sale.TO_SELL()) / getContribution(user1));
-        // User has been refunded of their excess ETH
-        assertEq(user1.balance, contribution - address(sale).balance);
-        // Sale contract has no tokens left
-        assertEq(token.balanceOf(address(sale)), 0);
-        // User has claimed
+        vm.prank(user2);
+        sale.claim();
+
+        uint256 totalRefund = totalContribution - HARD_CAP;
+
+
+        // User1 received their share of tokens (allow for small rounding error)
+        uint256 expectedTokens1 = (contribution1 * sale.TO_SELL()) / totalContribution;
+        uint256 actualTokens1 = token.balanceOf(user1);
+        assertApproxEqAbs(actualTokens1, expectedTokens1, 1e6);
+
+        // User1 has been refunded their excess ETH
+        uint256 expectedRefund1 = (contribution1 * totalRefund) / totalContribution;
+        assertApproxEqAbs(user1.balance, user1BalanceBefore + expectedRefund1, 1e6);
+
+        // User2 received their share of tokens (allow for small rounding error)
+        uint256 expectedTokens2 = (contribution2 * sale.TO_SELL()) / totalContribution;
+        uint256 actualTokens2 = token.balanceOf(user2);
+        assertApproxEqAbs(actualTokens2, expectedTokens2, 1e6);
+
+        // User2 has been refunded their excess ETH
+        uint256 expectedRefund2 = (contribution2 * totalRefund) / totalContribution;
+        assertApproxEqAbs(user2.balance, user2BalanceBefore + expectedRefund2, 1e6);
+
+        // Sale contract has no tokens left (or very small amount due to rounding)
+        assertLe(token.balanceOf(address(sale)), 1e9);
+
+        // Both users have claimed
         assertTrue(getHasClaimed(user1));
+        assertTrue(getHasClaimed(user2));
+
+        // Total tokens distributed should equal TO_SELL (allow for small rounding error)
+        assertApproxEqAbs(actualTokens1 + actualTokens2, sale.TO_SELL(), 1e6);
+
+        // Total ETH in contract should equal HARD_CAP (allow for small rounding error)
+        assertApproxEqAbs(address(sale).balance, HARD_CAP, 1e6);
     }
 
     function testCannotClaimTwice() public {
