@@ -39,7 +39,9 @@ contract SaleTest is Test {
         vm.deal(user1, 1000 ether);
         vm.deal(user2, 1000 ether);
     }
-
+    
+    /// @notice Tests the initial state of the PublicSale contract after deployment
+    /// @dev Verifies correct token address, soft cap, hard cap, sale end time, and initial state
     function testInitialState() public {
         assertEq(sale.TOKEN(), address(token));
         assertEq(sale.SOFT_CAP(), SOFT_CAP);
@@ -49,6 +51,8 @@ contract SaleTest is Test {
         assertFalse(sale.saleEnded());
     }
 
+    /// @notice Tests the contribution functionality of the PublicSale contract
+    /// @dev Verifies that a user can contribute ETH and that the contract state updates correctly
     function testContribute() public {
         vm.prank(user1);
         (bool success, ) = address(sale).call{value: 50 ether}("");
@@ -60,6 +64,8 @@ contract SaleTest is Test {
         assertEq(getContribution(user1), 50 ether);
     }
 
+    /// @notice Tests that contributions fail after the sale end time
+    /// @dev Attempts to contribute after the sale duration and expects the transaction to revert
     function testFailContributeFailsAfterEndTime() public {
         vm.warp(block.timestamp + DURATION + 1);
         vm.prank(user1);
@@ -69,6 +75,8 @@ contract SaleTest is Test {
         assertFalse(success);
     }
 
+    /// @notice Tests the endSale function of the PublicSale contract
+    /// @dev Verifies that the sale can be ended after the duration has passed
     function testEndSale() public {
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
@@ -76,6 +84,8 @@ contract SaleTest is Test {
         assertTrue(sale.saleEnded());
     }
 
+    /// @notice Tests that ending the sale fails before the end time
+    /// @dev Attempts to end the sale before the duration has passed and expects it to revert
     function testFailSaleFailsBeforeEndTime() public {
         vm.warp(block.timestamp + DURATION - 1);
         // Reverts because sale is not ended
@@ -83,6 +93,10 @@ contract SaleTest is Test {
         sale.endSale();
     }
 
+    /// @notice Tests the refund claim process when the soft cap is not reached
+    /// @dev Simulates contributions below the soft cap and verifies correct refunds after sale ends
+    /// @param contribution1 Fuzzy input for the first user's contribution
+    /// @param contribution2 Fuzzy input for the second user's contribution
     function testClaimRefundWhenSoftCapNotReached(uint256 contribution1, uint256 contribution2) public {
         // Ensure the total contribution is less than SOFT_CAP
         uint256 maxTotalContribution = SOFT_CAP - 2; // Subtract 2 to ensure room for both contributions
@@ -127,6 +141,10 @@ contract SaleTest is Test {
         assertTrue(getHasClaimed(user2));
     }
 
+    /// @notice Tests the token claim process when the soft cap is reached
+    /// @dev Simulates contributions between soft cap and hard cap and verifies correct token distribution
+    /// @param contribution1 Fuzzy input for the first user's contribution
+    /// @param contribution2 Fuzzy input for the second user's contribution
     function testClaimTokensWhenSoftCapReached(uint256 contribution1, uint256 contribution2) public {
         // Ensure the total contribution is between SOFT_CAP and HARD_CAP
         uint256 maxTotalContribution = HARD_CAP;
@@ -185,6 +203,10 @@ contract SaleTest is Test {
         assertLe(token.balanceOf(address(sale)), 1e9);
     }
 
+    /// @notice Tests the claim process when the sale is oversubscribed
+    /// @dev Simulates contributions exceeding the hard cap and verifies correct token and ETH distribution
+    /// @param totalContribution Fuzzy input for the total contribution amount
+    /// @param split Fuzzy input to determine the split of contributions between two users
     function testClaimTokensAndRefundWhenOversubscribed(uint256 totalContribution, uint256 split) public {
         // Define the minimum and maximum total contributions
         uint256 minTotalContribution = HARD_CAP + 3;
@@ -240,7 +262,6 @@ contract SaleTest is Test {
 
         uint256 totalRefund = totalContribution - HARD_CAP;
 
-
         // User1 received their share of tokens (allow for small rounding error)
         uint256 expectedTokens1 = (contribution1 * sale.TO_SELL()) / totalContribution;
         uint256 actualTokens1 = token.balanceOf(user1);
@@ -273,6 +294,8 @@ contract SaleTest is Test {
         assertApproxEqAbs(address(sale).balance, HARD_CAP, 1e6);
     }
 
+    /// @notice Tests that users cannot claim twice
+    /// @dev Simulates a contribution, claim, and then attempts a second claim which should fail
     function testCannotClaimTwice() public {
         vm.prank(user1);
         (bool success, ) = address(sale).call{value: 5 ether}("");
@@ -291,6 +314,8 @@ contract SaleTest is Test {
         sale.claim();
     }
 
+    /// @notice Tests that non-contributors cannot claim
+    /// @dev Attempts to claim without contributing and expects it to revert
     function testCannotClaimIfNotContributed() public {
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
