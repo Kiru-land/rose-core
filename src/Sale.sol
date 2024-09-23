@@ -2,7 +2,6 @@
 pragma solidity ^0.8.26;
 
 // TODO: a way to collect the ETH to TOKEN.TREASURY(), or a way to permisionlessly add liquidity to the pool and keep some
-// TODO: keep a small part of the ETH in the contract in case of refunds
 
 contract PublicSale {
 
