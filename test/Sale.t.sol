@@ -24,6 +24,7 @@ contract SaleTest is Test {
     uint256 public constant SOFT_CAP = 100 ether;
     uint256 public constant HARD_CAP = 200 ether;
     uint256 public constant DURATION = 7 days;
+    uint256 public constant LIQ_RATIO = 9000;
 
     function setUp() public {
         owner = address(this);
@@ -32,7 +33,7 @@ contract SaleTest is Test {
 
         token = new MockToken(INITIAL_SUPPLY);
 
-        sale = new PublicSale(address(token), TO_SELL, SOFT_CAP, HARD_CAP, DURATION);
+        sale = new PublicSale(address(token), TO_SELL, SOFT_CAP, HARD_CAP, DURATION, LIQ_RATIO);
 
         token.transfer(address(sale), INITIAL_SUPPLY);
 
@@ -229,11 +230,6 @@ contract SaleTest is Test {
         // Ensure totalContribution matches the sum of contributions
         vm.assume(contribution1 + contribution2 == totalContribution);
 
-        console.log("contribution1", contribution1 / 1e15);
-        console.log("contribution2", contribution2 / 1e15);
-        console.log("totalContribution", totalContribution / 1e15);
-        console.log("HARD_CAP", HARD_CAP / 1e15);
-
         // Assertions to verify our conditions
         assertTrue(totalContribution < HARD_CAP * 2, "Total contribution should be less than HARD_CAP * 2");
         assertTrue(totalContribution > HARD_CAP + 2, "Total contribution should be greater than HARD_CAP + 2");
@@ -291,7 +287,7 @@ contract SaleTest is Test {
         assertApproxEqAbs(actualTokens1 + actualTokens2, sale.TO_SELL(), 1e6);
 
         // Total ETH in contract should equal HARD_CAP (allow for small rounding error)
-        assertApproxEqAbs(address(sale).balance, HARD_CAP, 1e6);
+        assertApproxEqAbs(address(sale).balance, HARD_CAP, 1e4);
     }
 
     /// @notice Tests that users cannot claim twice
@@ -325,6 +321,70 @@ contract SaleTest is Test {
         vm.expectRevert();
         sale.claim();
     }
+
+    // function testWrapUpSoftCapNotReached() public {
+    //     // Contribute less than soft cap
+    //     vm.prank(user1);
+    //     (bool success, ) = address(sale).call{value: SOFT_CAP - 1 ether}("");
+    //     assertTrue(success);
+
+    //     vm.warp(block.timestamp + DURATION);
+    //     sale.endSale();
+
+    //     // Attempt to wrap up should fail
+    //     vm.expectRevert();
+    //     sale.wrapUp();
+    // }
+
+    // function testWrapUpBetweenSoftCapAndHardCap() public {
+    //     uint256 contribution = (SOFT_CAP + HARD_CAP) / 2;
+        
+    //     vm.prank(user1);
+    //     (bool success, ) = address(sale).call{value: contribution}("");
+    //     assertTrue(success);
+
+    //     vm.warp(block.timestamp + DURATION);
+    //     sale.endSale();
+
+    //     uint256 contractBalanceBefore = address(sale).balance;
+    //     uint256 tokenContractBalanceBefore = address(token).balance;
+    //     uint256 treasuryBalanceBefore = token.TREASURY().balance;
+
+    //     sale.wrapUp();
+
+    //     uint256 expectedLiqAmount = (contribution * sale.LIQ_RATIO()) / 10000;
+    //     uint256 expectedTreasuryAmount = contribution - expectedLiqAmount;
+
+    //     // Check that funds were sent correctly
+    //     assertEq(address(sale).balance, 0, "Sale contract should have 0 balance");
+    //     assertEq(address(token).balance, tokenContractBalanceBefore + expectedLiqAmount, "Token contract should receive liq amount");
+    //     assertEq(token.TREASURY().balance, treasuryBalanceBefore + expectedTreasuryAmount, "Treasury should receive remaining amount");
+    // }
+
+    // function testWrapUpAboveHardCap() public {
+    //     uint256 contribution = HARD_CAP + 50 ether;
+        
+    //     vm.prank(user1);
+    //     (bool success, ) = address(sale).call{value: contribution}("");
+    //     assertTrue(success);
+
+    //     vm.warp(block.timestamp + DURATION);
+    //     sale.endSale();
+
+    //     uint256 contractBalanceBefore = address(sale).balance;
+    //     uint256 tokenContractBalanceBefore = address(token).balance;
+    //     uint256 treasuryBalanceBefore = token.TREASURY().balance;
+
+    //     sale.wrapUp();
+
+    //     uint256 expectedLiqAmount = (HARD_CAP * sale.LIQ_RATIO()) / 10000;
+    //     uint256 expectedTreasuryAmount = HARD_CAP - expectedLiqAmount;
+
+    //     // Check that funds were sent correctly
+    //     assertEq(address(sale).balance, contribution - HARD_CAP, "Sale contract should keep excess funds");
+    //     assertEq(address(token).balance, tokenContractBalanceBefore + expectedLiqAmount, "Token contract should receive liq amount");
+    //     assertEq(token.TREASURY().balance, treasuryBalanceBefore + expectedTreasuryAmount, "Treasury should receive remaining amount");
+    // }
 
 
 
