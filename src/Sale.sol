@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 // TODO: a way to collect the ETH to TOKEN.TREASURY(), or a way to permisionlessly add liquidity to the pool and keep some
+// TODO a way to keep some funds in the contract in case of refunds
 
 contract PublicSale {
 
@@ -10,6 +11,7 @@ contract PublicSale {
     uint256 public immutable SOFT_CAP;
     uint256 public immutable HARD_CAP;
     uint256 public immutable SALE_END;
+    uint256 public immutable LIQ_RATIO;
 
     uint256 public totalRaised; // slot 0
     bool public saleEnded; // slot 1
@@ -19,12 +21,13 @@ contract PublicSale {
 
     bytes32 constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
 
-    constructor(address _token, uint256 _toSell, uint256 _softCap, uint256 _hardCap, uint256 _duration) {
+    constructor(address _token, uint256 _toSell, uint256 _softCap, uint256 _hardCap, uint256 _duration, uint256 liqRatio) {
         TOKEN = _token;
         TO_SELL = _toSell;
         SOFT_CAP = _softCap;
         HARD_CAP = _hardCap;
         SALE_END = block.timestamp + _duration;
+        LIQ_RATIO = liqRatio;
     }
 
     receive() external payable {
@@ -109,6 +112,52 @@ contract PublicSale {
                     if iszero(refundSuccess) { revert(0, 0) }
                 }
             }
+        }
+    }
+
+    function wrapUp() external {
+        uint256 _HARD_CAP = HARD_CAP;
+        uint256 _LIQ_RATIO = LIQ_RATIO;
+        uint256 _SOFT_CAP = SOFT_CAP;
+        address _TOKEN = TOKEN;
+        
+        assembly {
+            // Check if sale has ended
+            if iszero(sload(saleEnded.slot)) { revert(0, 0) }
+
+            let totalRaisedValue := sload(totalRaised.slot)
+            
+            // Revert if totalRaised < SOFT_CAP
+            if lt(totalRaisedValue, _SOFT_CAP) { revert(0, 0) }
+
+            // Calculate the amount to send to TOKEN contract
+            let liqAmount
+            let treasuryAmount
+            if lt(totalRaisedValue, _HARD_CAP) {
+                // If SOFT_CAP < totalRaised < HARD_CAP
+                liqAmount := div(mul(totalRaisedValue, _LIQ_RATIO), 10000)
+                treasuryAmount := sub(totalRaisedValue, liqAmount)
+            }
+            if iszero(lt(totalRaisedValue, _HARD_CAP)) {
+                // If totalRaised >= HARD_CAP
+                liqAmount := div(mul(_HARD_CAP, _LIQ_RATIO), 10000)
+                treasuryAmount := sub(_HARD_CAP, liqAmount)
+            }
+
+            // Send funds to TOKEN contract
+            let success1 := call(gas(), _TOKEN, liqAmount, 0, 0, 0, 0)
+            if iszero(success1) { revert(0, 0) }
+
+            // Get TREASURY address from TOKEN contract
+            let ptr := mload(0x40)
+            mstore(ptr, 0x3e5e3c23000000000000000000000000000000000000000000000000000000) // TREASURY() selector
+            let success2 := staticcall(gas(), _TOKEN, ptr, 4, ptr, 0x20)
+            if iszero(success2) { revert(0, 0) }
+            let treasuryAddress := mload(ptr)
+
+            // Send remaining funds to TREASURY
+            let success3 := call(gas(), treasuryAddress, treasuryAmount, 0, 0, 0, 0)
+            if iszero(success3) { revert(0, 0) }
         }
     }
 }
