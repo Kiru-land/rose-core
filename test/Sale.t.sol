@@ -15,28 +15,29 @@ contract MockToken is ERC20 {
 contract SaleTest is Test {
     PublicSale public sale;
     MockToken public token;
-    address public owner;
     address public user1;
     address public user2;
-
-    uint256 public constant INITIAL_SUPPLY = 1_000_000 * 1e18;
-    uint256 public constant TO_SELL = 1_000_000 * 1e18;
+    address public treasury = address(0x3);
+    address public owner;
+    address public notOwner;
+    uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 1e18;
     uint256 public constant SOFT_CAP = 100 ether;
     uint256 public constant HARD_CAP = 200 ether;
     uint256 public constant DURATION = 7 days;
     uint256 public constant LIQ_RATIO = 9000;
 
     function setUp() public {
-        owner = address(this);
         user1 = address(0x1);
         user2 = address(0x2);
+        owner = address(0x4);
+        notOwner = address(0x5);
 
         token = new MockToken(INITIAL_SUPPLY);
+        vm.prank(owner);
+        sale = new PublicSale(SOFT_CAP, HARD_CAP, DURATION, LIQ_RATIO, treasury);
 
-        sale = new PublicSale(address(token), TO_SELL, SOFT_CAP, HARD_CAP, DURATION, LIQ_RATIO);
-
-        token.transfer(address(sale), INITIAL_SUPPLY);
-
+        vm.deal(owner, 10000000 ether);
+        vm.deal(notOwner, 10000000 ether);
         vm.deal(user1, 1000 ether);
         vm.deal(user2, 1000 ether);
     }
@@ -44,7 +45,6 @@ contract SaleTest is Test {
     /// @notice Tests the initial state of the PublicSale contract after deployment
     /// @dev Verifies correct token address, soft cap, hard cap, sale end time, and initial state
     function testInitialState() public {
-        assertEq(sale.TOKEN(), address(token));
         assertEq(sale.SOFT_CAP(), SOFT_CAP);
         assertEq(sale.HARD_CAP(), HARD_CAP);
         assertEq(sale.SALE_END(), block.timestamp + DURATION);
@@ -174,6 +174,10 @@ contract SaleTest is Test {
         uint256 user1BalanceBefore = user1.balance;
         uint256 user2BalanceBefore = user2.balance;
 
+        // Deploy ROSE contract
+        vm.prank(owner);
+        ERC20 rose = ERC20(sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000));
+
         vm.prank(user1);
         sale.claim();
 
@@ -181,9 +185,9 @@ contract SaleTest is Test {
         sale.claim();
 
         // User1 received their share of tokens (allow for small rounding error)
-        uint256 expectedTokens1 = (contribution1 * sale.TO_SELL()) / sale.totalRaised();
-        uint256 actualTokens1 = token.balanceOf(user1);
-        assertApproxEqAbs(actualTokens1, expectedTokens1, 1e6);
+        uint256 expectedTokens1 = (contribution1 * sale.toSell()) / sale.totalRaised();
+        uint256 actualTokens1 = rose.balanceOf(user1);
+        assertApproxEqAbs(actualTokens1, expectedTokens1, 1e9);
 
         // User1's ETH balance is unchanged
         assertEq(user1.balance, user1BalanceBefore);
@@ -191,9 +195,9 @@ contract SaleTest is Test {
         assertTrue(getHasClaimed(user1));
 
         // User2 received their share of tokens (allow for small rounding error)
-        uint256 expectedTokens2 = (contribution2 * sale.TO_SELL()) / sale.totalRaised();
-        uint256 actualTokens2 = token.balanceOf(user2);
-        assertApproxEqAbs(actualTokens2, expectedTokens2, 1e6);
+        uint256 expectedTokens2 = (contribution2 * sale.toSell()) / sale.totalRaised();
+        uint256 actualTokens2 = rose.balanceOf(user2);
+        assertApproxEqAbs(actualTokens2, expectedTokens2, 1e9);
 
         // User2's ETH balance is unchanged
         assertEq(user2.balance, user2BalanceBefore);
@@ -201,7 +205,7 @@ contract SaleTest is Test {
         assertTrue(getHasClaimed(user2));
 
         // Sale contract has no tokens left (or very small amount due to rounding)
-        assertLe(token.balanceOf(address(sale)), 1e9);
+        assertLe(rose.balanceOf(address(sale)), 1e9);
     }
 
     /// @notice Tests the claim process when the sale is oversubscribed
@@ -250,6 +254,10 @@ contract SaleTest is Test {
         uint256 user1BalanceBefore = user1.balance;
         uint256 user2BalanceBefore = user2.balance;
 
+        // Deploy ROSE contract
+        vm.prank(owner);
+        ERC20 rose = ERC20(sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000));
+
         vm.prank(user1);
         sale.claim();
 
@@ -259,32 +267,32 @@ contract SaleTest is Test {
         uint256 totalRefund = totalContribution - HARD_CAP;
 
         // User1 received their share of tokens (allow for small rounding error)
-        uint256 expectedTokens1 = (contribution1 * sale.TO_SELL()) / totalContribution;
-        uint256 actualTokens1 = token.balanceOf(user1);
-        assertApproxEqAbs(actualTokens1, expectedTokens1, 1e6);
+        uint256 expectedTokens1 = (contribution1 * sale.toSell()) / totalContribution;
+        uint256 actualTokens1 = rose.balanceOf(user1);
+        assertApproxEqAbs(actualTokens1, expectedTokens1, 1e9);
 
         // User1 has been refunded their excess ETH
         uint256 expectedRefund1 = (contribution1 * totalRefund) / totalContribution;
         assertApproxEqAbs(user1.balance, user1BalanceBefore + expectedRefund1, 1e6);
 
         // User2 received their share of tokens (allow for small rounding error)
-        uint256 expectedTokens2 = (contribution2 * sale.TO_SELL()) / totalContribution;
-        uint256 actualTokens2 = token.balanceOf(user2);
-        assertApproxEqAbs(actualTokens2, expectedTokens2, 1e6);
+        uint256 expectedTokens2 = (contribution2 * sale.toSell()) / totalContribution;
+        uint256 actualTokens2 = rose.balanceOf(user2);
+        assertApproxEqAbs(actualTokens2, expectedTokens2, 1e9);
 
         // User2 has been refunded their excess ETH
         uint256 expectedRefund2 = (contribution2 * totalRefund) / totalContribution;
         assertApproxEqAbs(user2.balance, user2BalanceBefore + expectedRefund2, 1e6);
 
         // Sale contract has no tokens left (or very small amount due to rounding)
-        assertLe(token.balanceOf(address(sale)), 1e9);
+        assertLe(rose.balanceOf(address(sale)), 1e9);
 
         // Both users have claimed
         assertTrue(getHasClaimed(user1));
         assertTrue(getHasClaimed(user2));
 
         // Total tokens distributed should equal TO_SELL (allow for small rounding error)
-        assertApproxEqAbs(actualTokens1 + actualTokens2, sale.TO_SELL(), 1e6);
+        assertApproxEqAbs(actualTokens1 + actualTokens2, sale.toSell(), 1e9);
 
         // Total ETH in contract should equal HARD_CAP (allow for small rounding error)
         assertApproxEqAbs(address(sale).balance, HARD_CAP, 1e4);
@@ -321,6 +329,37 @@ contract SaleTest is Test {
         vm.expectRevert();
         sale.claim();
     }
+
+    function testDeployRoseContract() public {
+        uint256 supply = 1e20;
+        uint256 r1InitRatio = 200000;
+        uint256 forSaleRatio = 700000;
+        vm.prank(owner);
+        ERC20 rose = ERC20(sale.deploy{value: 1e17}(1e5, 1e4, supply, r1InitRatio, forSaleRatio));
+        assertEq(rose.balanceOf(address(rose)), (r1InitRatio * supply) / 1e6);
+        assertEq(rose.balanceOf(address(sale)), (forSaleRatio * supply) / 1e6);
+        assertEq(rose.balanceOf(treasury), supply - ((r1InitRatio + forSaleRatio) * supply) / 1e6); 
+    }
+
+    function testDeployRoseNotOwner() public {
+        vm.prank(notOwner);
+        vm.expectRevert();
+        sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
+    }
+
+    function testDeployRoseAlreadyDeployed() public {
+        vm.prank(owner);
+        sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
+        vm.prank(owner);
+        vm.expectRevert();
+        sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
+    }
+
+    // TODO
+    function testCantWrapUpBeforeSaleEnds() public {}
+
+    // TODO
+    function testCantWrapUpIfTokenNotDeployed() public {}
 
     // function testWrapUpSoftCapNotReached() public {
     //     // Contribute less than soft cap
@@ -397,7 +436,7 @@ contract SaleTest is Test {
         assembly {
             let ptr := mload(0x40)
             mstore(ptr, addr)
-            mstore(add(ptr, 0x20), 2)
+            mstore(add(ptr, 0x20), 4)
             CONTRIB_SLOT := keccak256(ptr, 0x40)
         }
         return uint256(vm.load(address(sale), CONTRIB_SLOT));
@@ -408,7 +447,7 @@ contract SaleTest is Test {
         assembly {
             let ptr := mload(0x40)
             mstore(ptr, addr)
-            mstore(add(ptr, 0x20), 3)
+            mstore(add(ptr, 0x20), 5)
             HAS_CLAIMED_SLOT := keccak256(ptr, 0x40)
         }
         return vm.load(address(sale), HAS_CLAIMED_SLOT) != bytes32(0);
