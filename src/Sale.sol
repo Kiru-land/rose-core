@@ -127,45 +127,50 @@ contract PublicSale {
         address _TOKEN = token;
         
         assembly {
+            log1(0, 0, 1)
             // Check if sale has ended
             if iszero(sload(saleEnded.slot)) { revert(0, 0) }
-
+            log1(0, 0, 2)
             // Check if the token contract has been deployed
             if iszero(_TOKEN) { revert(0, 0) }
-
+            log1(0, 0, 3)
             let totalRaisedValue := sload(totalRaised.slot)
             
             // Revert if totalRaised < SOFT_CAP
             if lt(totalRaisedValue, _SOFT_CAP) { revert(0, 0) }
-
+            log1(0, 0, 4)
             // Calculate the amount to send to TOKEN contract
             let liqAmount
             let treasuryAmount
             if lt(totalRaisedValue, _HARD_CAP) {
+                log1(0, 0, 5)
                 // If SOFT_CAP < totalRaised < HARD_CAP
-                liqAmount := div(mul(totalRaisedValue, _LIQ_RATIO), 10000)
+                liqAmount := div(mul(totalRaisedValue, _LIQ_RATIO), 1000000)
                 treasuryAmount := sub(totalRaisedValue, liqAmount)
             }
             if iszero(lt(totalRaisedValue, _HARD_CAP)) {
+                log1(0, 0, 6)
                 // If totalRaised >= HARD_CAP
-                liqAmount := div(mul(_HARD_CAP, _LIQ_RATIO), 10000)
+                liqAmount := div(mul(_HARD_CAP, _LIQ_RATIO), 1000000)
                 treasuryAmount := sub(_HARD_CAP, liqAmount)
             }
 
             // Send funds to TOKEN contract
             let success1 := call(gas(), _TOKEN, liqAmount, 0, 0, 0, 0)
             if iszero(success1) { revert(0, 0) }
-
+            log1(0, 0, 7)
             // Get TREASURY address from TOKEN contract
             let ptr := mload(0x40)
             mstore(ptr, 0x3e5e3c23000000000000000000000000000000000000000000000000000000) // TREASURY() selector
             let success2 := staticcall(gas(), _TOKEN, ptr, 4, ptr, 0x20)
+            log1(0, 0, 8)
             if iszero(success2) { revert(0, 0) }
             let treasuryAddress := mload(ptr)
-
+            log1(0, 0, 9)
             // Send remaining funds to TREASURY
             let success3 := call(gas(), treasuryAddress, treasuryAmount, 0, 0, 0, 0)
             if iszero(success3) { revert(0, 0) }
+            log1(0, 0, 10)
         }
     }
 
