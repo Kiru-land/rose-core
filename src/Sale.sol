@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-
 // TODO: a way to collect the ETH to TOKEN.TREASURY(), or a way to permisionlessly add liquidity to the pool and keep some
 // TODO a way to keep some funds in the contract in case of refunds
 
+import "./Rose.sol";
+
 contract PublicSale {
 
-    address public immutable TOKEN;
-    uint256 public immutable TO_SELL;
+    address public immutable TREASURY;
+    address public immutable OWNER;
     uint256 public immutable SOFT_CAP;
     uint256 public immutable HARD_CAP;
     uint256 public immutable SALE_END;
@@ -15,19 +16,23 @@ contract PublicSale {
 
     uint256 public totalRaised; // slot 0
     bool public saleEnded; // slot 1
+    address public token; // slot 2
+    uint256 public toSell; // slot 3
 
-    mapping(address => uint256) contributions; // slot 2
-    mapping(address => bool) hasClaimed; // slot 3
+    mapping(address => uint256) contributions; // slot 4
+    mapping(address => bool) hasClaimed; // slot 5
+
+
 
     bytes32 constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
 
-    constructor(address _token, uint256 _toSell, uint256 _softCap, uint256 _hardCap, uint256 _duration, uint256 liqRatio) {
-        TOKEN = _token;
-        TO_SELL = _toSell;
+    constructor(uint256 _softCap, uint256 _hardCap, uint256 _duration, uint256 liqRatio, address _treasury) {
         SOFT_CAP = _softCap;
         HARD_CAP = _hardCap;
         SALE_END = block.timestamp + _duration;
         LIQ_RATIO = liqRatio;
+        TREASURY = _treasury;
+        OWNER = msg.sender;
     }
 
     receive() external payable {
@@ -38,7 +43,7 @@ contract PublicSale {
 
             let ptr := mload(0x40)
             mstore(ptr, caller())
-            mstore(add(ptr, 0x20), 2)
+            mstore(add(ptr, 0x20), 4)
             let contribSlot := keccak256(ptr, 0x40)
             sstore(totalRaised.slot, add(sload(totalRaised.slot), callvalue()))
             sstore(contribSlot, add(sload(contribSlot), callvalue()))
@@ -57,8 +62,8 @@ contract PublicSale {
     function claim() external {
         uint _SOFT_CAP = SOFT_CAP;
         uint _HARD_CAP = HARD_CAP;
-        uint _TO_SELL = TO_SELL;
-        address _TOKEN = TOKEN;
+        uint _TO_SELL = toSell;
+        address _TOKEN = token;
         bytes32 _TRANSFER_SELECTOR = TRANSFER_SELECTOR;
         assembly {
             let ptr := mload(0x40)
@@ -66,12 +71,12 @@ contract PublicSale {
             if iszero(sload(saleEnded.slot)) { revert(0, 0) }
             // assert(contributions[msg.sender] > 0);
             mstore(ptr, caller())
-            mstore(add(ptr, 0x20), 2)
+            mstore(add(ptr, 0x20), 4)
             let contribSlot := keccak256(ptr, 0x40)
             let contributionAmount := sload(contribSlot)
             if iszero(contributionAmount) { revert(0, 0) }
             // assert(!hasClaimed[msg.sender]);
-            mstore(add(ptr, 0x20), 3)
+            mstore(add(ptr, 0x20), 5)
             let hasClaimedSlot := keccak256(ptr, 0x40)
             if sload(hasClaimedSlot) { revert(0, 0) }
             sstore(hasClaimedSlot, 1)
@@ -119,11 +124,14 @@ contract PublicSale {
         uint256 _HARD_CAP = HARD_CAP;
         uint256 _LIQ_RATIO = LIQ_RATIO;
         uint256 _SOFT_CAP = SOFT_CAP;
-        address _TOKEN = TOKEN;
+        address _TOKEN = token;
         
         assembly {
             // Check if sale has ended
             if iszero(sload(saleEnded.slot)) { revert(0, 0) }
+
+            // Check if the token contract has been deployed
+            if iszero(_TOKEN) { revert(0, 0) }
 
             let totalRaisedValue := sload(totalRaised.slot)
             
@@ -159,5 +167,13 @@ contract PublicSale {
             let success3 := call(gas(), treasuryAddress, treasuryAmount, 0, 0, 0, 0)
             if iszero(success3) { revert(0, 0) }
         }
+    }
+
+    function deploy(uint _alpha, uint _phi, uint256 _supply, uint256 _r1InitRatio, uint256 _forSaleRatio) external payable returns (address) {
+        require(msg.sender == OWNER, "Only owner can deploy");
+        require(address(token) == address(0), "Token already deployed");
+        token = address(new Rose{value: msg.value}(_alpha, _phi, TREASURY, _supply, _r1InitRatio, _forSaleRatio));
+        toSell = Rose(payable(token)).balanceOf(address(this));
+        return token;
     }
 }
