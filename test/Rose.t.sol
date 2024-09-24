@@ -10,7 +10,7 @@ contract RoseTest is Test {
     uint public liquidityInit = 1e24;
 
     function setUp() public {
-        rose = new Rose{salt: "REDROSE", value: liquidityInit}(1e5, 1e4, liquidityInit, address(this), 1e25);
+        rose = new Rose{salt: "REDROSE", value: liquidityInit}(1e5, 1e4, address(this), 1e25, 200000, 700000);
     }
 
     function test_approve(address to, uint value) public {
