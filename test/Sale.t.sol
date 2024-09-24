@@ -5,16 +5,10 @@ import "forge-std/Test.sol";
 import "../src/Sale.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "forge-std/console.sol";
-
-contract MockToken is ERC20 {
-    constructor(uint256 initialSupply) ERC20("MockToken", "MTK") {
-        _mint(msg.sender, initialSupply);
-    }
-}
+import "../src/Rose.sol";
 
 contract SaleTest is Test {
     PublicSale public sale;
-    MockToken public token;
     address public user1;
     address public user2;
     address public treasury = address(0x3);
@@ -32,7 +26,6 @@ contract SaleTest is Test {
         owner = address(0x4);
         notOwner = address(0x5);
 
-        token = new MockToken(INITIAL_SUPPLY);
         vm.prank(owner);
         sale = new PublicSale(SOFT_CAP, HARD_CAP, DURATION, LIQ_RATIO, treasury);
 
@@ -355,50 +348,68 @@ contract SaleTest is Test {
         sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
     }
 
-    // TODO
-    function testCantWrapUpBeforeSaleEnds() public {}
+    function testCantWrapUpBeforeSaleEnds() public {
+        vm.expectRevert();
+        sale.wrapUp();
+    }
 
-    // TODO
-    function testCantWrapUpIfTokenNotDeployed() public {}
+    function testCantWrapUpIfTokenNotDeployed() public {
+        vm.warp(block.timestamp + DURATION);
 
-    // function testWrapUpSoftCapNotReached() public {
-    //     // Contribute less than soft cap
-    //     vm.prank(user1);
-    //     (bool success, ) = address(sale).call{value: SOFT_CAP - 1 ether}("");
-    //     assertTrue(success);
+        sale.endSale();
 
-    //     vm.warp(block.timestamp + DURATION);
-    //     sale.endSale();
+        vm.expectRevert();
+        sale.wrapUp();
+    }
 
-    //     // Attempt to wrap up should fail
-    //     vm.expectRevert();
-    //     sale.wrapUp();
-    // }
+    function testWrapUpSoftCapNotReached() public {
+        // Contribute less than soft cap
+        vm.prank(user1);
+        (bool success, ) = address(sale).call{value: SOFT_CAP - 1 ether}("");
+        assertTrue(success);
 
-    // function testWrapUpBetweenSoftCapAndHardCap() public {
-    //     uint256 contribution = (SOFT_CAP + HARD_CAP) / 2;
+        vm.warp(block.timestamp + DURATION);
+        sale.endSale();
+
+        vm.prank(owner);
+        sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
+
+        // Attempt to wrap up should fail
+        vm.expectRevert();
+        sale.wrapUp();
+    }
+
+    function testWrapUpBetweenSoftCapAndHardCap() public {
+        uint256 contribution = SOFT_CAP + 1 ether;
         
-    //     vm.prank(user1);
-    //     (bool success, ) = address(sale).call{value: contribution}("");
-    //     assertTrue(success);
+        vm.prank(user1);
+        (bool success, ) = address(sale).call{value: contribution}("");
+        assertTrue(success);
 
-    //     vm.warp(block.timestamp + DURATION);
-    //     sale.endSale();
+        vm.warp(block.timestamp + DURATION);
+        sale.endSale();
 
-    //     uint256 contractBalanceBefore = address(sale).balance;
-    //     uint256 tokenContractBalanceBefore = address(token).balance;
-    //     uint256 treasuryBalanceBefore = token.TREASURY().balance;
+        vm.prank(owner);
+        Rose rose = Rose(payable(sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000)));
 
-    //     sale.wrapUp();
+        // uint256 contractBalanceBefore = address(sale).balance;
+        // uint256 tokenContractBalanceBefore = address(token).balance;
+        // uint256 treasuryBalanceBefore = token.TREASURY().balance;
 
-    //     uint256 expectedLiqAmount = (contribution * sale.LIQ_RATIO()) / 10000;
-    //     uint256 expectedTreasuryAmount = contribution - expectedLiqAmount;
+        console.log("balance before wrap up", address(sale).balance);
+        console.log("totalRaised           ", sale.totalRaised());
+        console.log("SOFT_CAP              ", sale.SOFT_CAP());
+        console.log(" rose treasury", rose.TREASURY());
+        sale.wrapUp();
 
-    //     // Check that funds were sent correctly
-    //     assertEq(address(sale).balance, 0, "Sale contract should have 0 balance");
-    //     assertEq(address(token).balance, tokenContractBalanceBefore + expectedLiqAmount, "Token contract should receive liq amount");
-    //     assertEq(token.TREASURY().balance, treasuryBalanceBefore + expectedTreasuryAmount, "Treasury should receive remaining amount");
-    // }
+        // uint256 expectedLiqAmount = (contribution * sale.LIQ_RATIO()) / 10000;
+        // uint256 expectedTreasuryAmount = contribution - expectedLiqAmount;
+
+        // // Check that funds were sent correctly
+        // assertEq(address(sale).balance, 0, "Sale contract should have 0 balance");
+        // assertEq(address(token).balance, tokenContractBalanceBefore + expectedLiqAmount, "Token contract should receive liq amount");
+        // assertEq(token.TREASURY().balance, treasuryBalanceBefore + expectedTreasuryAmount, "Treasury should receive remaining amount");
+    }
 
     // function testWrapUpAboveHardCap() public {
     //     uint256 contribution = HARD_CAP + 50 ether;
