@@ -11,7 +11,7 @@ contract SaleTest is Test {
     PublicSale public sale;
     address public user1;
     address public user2;
-    address public treasury = address(0x3);
+    address public treasury;
     address public owner;
     address public notOwner;
     uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 1e18;
@@ -23,6 +23,7 @@ contract SaleTest is Test {
     function setUp() public {
         user1 = address(0x1);
         user2 = address(0x2);
+        treasury = address(0x3);
         owner = address(0x4);
         notOwner = address(0x5);
 
@@ -404,51 +405,46 @@ contract SaleTest is Test {
         sale.endSale();
 
         vm.prank(owner);
-        Rose rose = Rose(payable(sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000)));
+        Rose rose = Rose(payable(sale.deploy{value: 1}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000)));
+        uint256 liqAmount = (contribution * sale.LIQ_RATIO()) / 1000000;
+        uint256 treasuryAmount = contribution - liqAmount;
 
-        // uint256 contractBalanceBefore = address(sale).balance;
-        // uint256 tokenContractBalanceBefore = address(token).balance;
-        // uint256 treasuryBalanceBefore = token.TREASURY().balance;
-
-        console.log("balance before wrap up", address(sale).balance);
-        console.log("totalRaised           ", sale.totalRaised());
-        console.log("SOFT_CAP              ", sale.SOFT_CAP());
-        console.log(" rose treasury", rose.TREASURY());
         sale.wrapUp();
 
-        // uint256 expectedLiqAmount = (contribution * sale.LIQ_RATIO()) / 10000;
-        // uint256 expectedTreasuryAmount = contribution - expectedLiqAmount;
-
-        // // Check that funds were sent correctly
-        // assertEq(address(sale).balance, 0, "Sale contract should have 0 balance");
-        // assertEq(address(token).balance, tokenContractBalanceBefore + expectedLiqAmount, "Token contract should receive liq amount");
-        // assertEq(token.TREASURY().balance, treasuryBalanceBefore + expectedTreasuryAmount, "Treasury should receive remaining amount");
+        // Check that funds were sent correctly
+        assertApproxEqAbs(address(sale).balance, 0, 1);
+        // Check that the ROSE contract received the correct amount of ETH
+        assertApproxEqAbs(address(rose).balance, liqAmount, 1);
+        // Check that the treasury received the correct amount of ETH
+        assertApproxEqAbs(address(rose.TREASURY()).balance, treasuryAmount, 1);
     }
 
-    // function testWrapUpAboveHardCap() public {
-    //     uint256 contribution = HARD_CAP + 50 ether;
+    /// @notice Tests the wrapUp function when contributions are above hard cap
+    /// @dev Simulates a contribution above hard cap, ends the sale, deploys the token, and calls wrapUp
+    function testWrapUpAboveHardCap() public {
+        uint256 contribution = HARD_CAP + 1;
         
-    //     vm.prank(user1);
-    //     (bool success, ) = address(sale).call{value: contribution}("");
-    //     assertTrue(success);
+        vm.prank(user1);
+        (bool success, ) = address(sale).call{value: contribution}("");
+        assertTrue(success);
 
-    //     vm.warp(block.timestamp + DURATION);
-    //     sale.endSale();
+        vm.warp(block.timestamp + DURATION);
+        sale.endSale();
 
-    //     uint256 contractBalanceBefore = address(sale).balance;
-    //     uint256 tokenContractBalanceBefore = address(token).balance;
-    //     uint256 treasuryBalanceBefore = token.TREASURY().balance;
+        vm.prank(owner);
+        Rose rose = Rose(payable(sale.deploy{value: 1}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000)));
+        uint256 liqAmount = (sale.HARD_CAP() * sale.LIQ_RATIO()) / 1000000;
+        uint256 treasuryAmount = contribution - liqAmount;
 
-    //     sale.wrapUp();
+        sale.wrapUp();
 
-    //     uint256 expectedLiqAmount = (HARD_CAP * sale.LIQ_RATIO()) / 10000;
-    //     uint256 expectedTreasuryAmount = HARD_CAP - expectedLiqAmount;
-
-    //     // Check that funds were sent correctly
-    //     assertEq(address(sale).balance, contribution - HARD_CAP, "Sale contract should keep excess funds");
-    //     assertEq(address(token).balance, tokenContractBalanceBefore + expectedLiqAmount, "Token contract should receive liq amount");
-    //     assertEq(token.TREASURY().balance, treasuryBalanceBefore + expectedTreasuryAmount, "Treasury should receive remaining amount");
-    // }
+        // Check that funds were sent correctly
+        assertApproxEqAbs(address(sale).balance, 0, 1);
+        // Check that the ROSE contract received the correct amount of ETH
+        assertApproxEqAbs(address(rose).balance, liqAmount, 1);
+        // Check that the treasury received the correct amount of ETH
+        assertApproxEqAbs(address(rose.TREASURY()).balance, treasuryAmount, 1);
+    }
 
 
 
