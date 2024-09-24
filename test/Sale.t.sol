@@ -322,7 +322,9 @@ contract SaleTest is Test {
         vm.expectRevert();
         sale.claim();
     }
-
+    
+    /// @notice Tests the deployment of the Rose contract
+    /// @dev Verifies correct token distribution after deployment
     function testDeployRoseContract() public {
         uint256 supply = 1e20;
         uint256 r1InitRatio = 200000;
@@ -334,12 +336,16 @@ contract SaleTest is Test {
         assertEq(rose.balanceOf(treasury), supply - ((r1InitRatio + forSaleRatio) * supply) / 1e6); 
     }
 
+    /// @notice Tests that non-owners cannot deploy the Rose contract
+    /// @dev Attempts to deploy the Rose contract as a non-owner and expects it to revert
     function testDeployRoseNotOwner() public {
         vm.prank(notOwner);
         vm.expectRevert();
         sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
     }
 
+    /// @notice Tests that the Rose contract cannot be deployed twice
+    /// @dev Attempts to deploy the Rose contract twice and expects the second attempt to revert
     function testDeployRoseAlreadyDeployed() public {
         vm.prank(owner);
         sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
@@ -348,11 +354,15 @@ contract SaleTest is Test {
         sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
     }
 
+    /// @notice Tests that wrapUp cannot be called before the sale ends
+    /// @dev Attempts to call wrapUp before the sale duration has passed and expects it to revert
     function testCantWrapUpBeforeSaleEnds() public {
         vm.expectRevert();
         sale.wrapUp();
     }
 
+    /// @notice Tests that wrapUp cannot be called if the token is not deployed
+    /// @dev Attempts to call wrapUp after the sale ends but before token deployment and expects it to revert
     function testCantWrapUpIfTokenNotDeployed() public {
         vm.warp(block.timestamp + DURATION);
 
@@ -362,6 +372,8 @@ contract SaleTest is Test {
         sale.wrapUp();
     }
 
+    /// @notice Tests that wrapUp fails when the soft cap is not reached
+    /// @dev Simulates a contribution below the soft cap, ends the sale, deploys the token, and expects wrapUp to revert
     function testWrapUpSoftCapNotReached() public {
         // Contribute less than soft cap
         vm.prank(user1);
@@ -379,6 +391,8 @@ contract SaleTest is Test {
         sale.wrapUp();
     }
 
+    /// @notice Tests the wrapUp function when contributions are between soft cap and hard cap
+    /// @dev Simulates a contribution above soft cap, ends the sale, deploys the token, and calls wrapUp
     function testWrapUpBetweenSoftCapAndHardCap() public {
         uint256 contribution = SOFT_CAP + 1 ether;
         
