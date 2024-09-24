@@ -83,15 +83,15 @@ contract Rose {
     /**
       * @notice t=0 state
       */
-    constructor(uint _alpha, uint _phi, uint _r1Init, address _treasury, uint256 _supply, uint256 _forSaleRatio) payable {
+    constructor(uint _alpha, uint _phi, address _treasury, uint256 _supply, uint256 _r1InitRatio, uint256 _forSaleRatio) payable {
         ALPHA_INIT = _alpha;
         PHI_FACTOR =  _phi;
-        R1_INIT = _r1Init;
         TREASURY = _treasury;
 
         bytes32 _SELF_BALANCE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT;
         bytes32 _SALE_SLOT;
+        uint256 r1Init;
         assembly {
             let ptr := mload(0x40)
             mstore(ptr, address())
@@ -101,16 +101,17 @@ contract Rose {
             _TREASURY_BALANCE_SLOT := keccak256(ptr, 0x40)
             mstore(ptr, caller())
             _SALE_SLOT := keccak256(ptr, 0x40)
-            sstore(_SELF_BALANCE_SLOT, _r1Init)
-            let remaining := sub(_supply, _r1Init)
-            let forSale := div(mul(remaining, _forSaleRatio), 1000000)
+            r1Init := div(mul(_supply, _r1InitRatio), 1000000)
+            sstore(_SELF_BALANCE_SLOT, r1Init)
+            let forSale := div(mul(_supply, _forSaleRatio), 1000000)
             sstore(_SALE_SLOT, forSale)
-            sstore(_TREASURY_BALANCE_SLOT, sub(remaining, forSale))
+            sstore(_TREASURY_BALANCE_SLOT, sub(_supply, add(r1Init, forSale)))
         }
 
         SELF_BALANCE_SLOT = _SELF_BALANCE_SLOT;
         TREASURY_BALANCE_SLOT = _TREASURY_BALANCE_SLOT;
         SALE_SLOT = _SALE_SLOT;
+        R1_INIT = r1Init;
     }
 
     //////////////////////////////////////////////////////////////
@@ -478,9 +479,7 @@ contract Rose {
       * @return true
       */
     function transfer(address to, uint256 value) public returns (bool) {
-        bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
-        bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
             let from := caller()
@@ -530,9 +529,7 @@ contract Rose {
       * @return true
       */
     function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
-        bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
             let spender := caller()
