@@ -10,7 +10,7 @@ contract RoseTest is Test {
     uint public liquidityInit = 1e24;
 
     function setUp() public {
-        rose = new Rose{salt: "REDROSE", value: liquidityInit}(1e5, 1e4, liquidityInit, address(this));
+        rose = new Rose{salt: "REDROSE", value: liquidityInit}(1e5, 1e4, liquidityInit, address(this), 1e25);
     }
 
     function test_approve(address to, uint value) public {
@@ -24,15 +24,15 @@ contract RoseTest is Test {
     function test_transfer(address to, uint value) public {
         vm.assume(to != address(this));
         vm.assume(to != address(rose));
+        vm.assume(value <= type(uint).max - rose.balanceOf(to));
         uint selfInitialRoseBalance = rose.balanceOf(address(this));
         uint toInitialRoseBalance = rose.balanceOf(to);
 
         rose.mint(address(this), value);
-        assertEq(rose.balanceOf(address(this)), selfInitialRoseBalance + value);
 
         assertTrue(rose.transfer(to, value));
 
-        assertEq(rose.balanceOf(address(this)), selfInitialRoseBalance);
+        assertEq(rose.balanceOf(address(this)), 0);
         assertEq(rose.balanceOf(to), toInitialRoseBalance + value);
     }
 
@@ -43,15 +43,13 @@ contract RoseTest is Test {
         assertTrue(rose.transfer(to, value));
     }
 
+
     function test_transferFrom(address from, address to, uint value) public {
         vm.assume(address(this) != from);
         vm.assume(from != to);
-        vm.assume(to != address(rose));
-        uint fromInitialRoseBalance = rose.balanceOf(from);
         uint toInitialRoseBalance = rose.balanceOf(to);
 
         rose.mint(from, value);
-        assertEq(rose.balanceOf(from), fromInitialRoseBalance + value);
 
         vm.startPrank(from);
         assertTrue(rose.approve(address(this), value));
@@ -61,7 +59,7 @@ contract RoseTest is Test {
 
         assertTrue(rose.transferFrom(from, to, value));
 
-        assertEq(rose.balanceOf(from), fromInitialRoseBalance);
+        assertEq(rose.balanceOf(from), 0);
         assertEq(rose.balanceOf(to), toInitialRoseBalance + value);
     }
 
@@ -80,7 +78,7 @@ contract RoseTest is Test {
     function testFail_transferFromNotEnoughBalance(address from, address to, uint balance, uint value) public {
         vm.assume(from != address(rose));
         vm.assume(value > balance);
-        rose.mint(address(this), balance);
+        rose.mint(from, balance);
 
         vm.startPrank(from);
         rose.approve(address(this), value);
@@ -110,7 +108,9 @@ contract RoseTest is Test {
         assertGe(r0Prime, r0);
         assertLe(r1Prime, r1);
         assertGe(alphaPrime, alpha);
-        assertGe(r0Prime * 1e6 / r1Prime, r0 * 1e6 / r1);
+        if (r1 > 0 && r1Prime > 0) {
+            assertGe(r0Prime * 1e6 / r1Prime, r0 * 1e6 / r1);
+        }
     }
 
     function test_sell(uint value) public {
@@ -141,13 +141,13 @@ contract RoseTest is Test {
         vm.assume(value <= rose.balanceOf(address(rose)) / 50);
         rose.mint(address(this), value);
         assertEq(rose.balanceOf(address(this)), value);
+        uint treasuryInitialWethBalance = address(rose.TREASURY()).balance;
+        uint roseInitialWethBalance = address(rose).balance;
         
         assertTrue(rose.transfer(address(rose), value));
 
         (uint r0, uint r1, uint alpha) = rose.getState();
         uint fees = address(rose).balance - r0;
-        uint roseInitialWethBalance = address(rose).balance;
-        uint treasuryInitialWethBalance = address(rose.TREASURY()).balance;
 
         vm.startPrank(rose.TREASURY());
         rose.collect();

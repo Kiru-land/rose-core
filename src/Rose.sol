@@ -2,24 +2,40 @@
 pragma solidity ^0.8.26; 
 
 /**
-  * @title Rose 🌹
+  * @title 🌹
+  *
+  *            _____
+  *          .'/L|__`.
+  *         / =[_]O|` \
+  *        |   _  |   |
+  *        ;  (_)  ;  |
+  *         '.___.' \  \
+  *          |     | \  `-.
+  *         |    _|  `\    \
+  *          _./' \._   `-._\
+  *        .'/     `.`.   '_.-.   
   *
   * @author 5A6E55E
   *
-  * @notice Rose is a ultra-efficient unified smart contract for the Rose token
-  *         integrating an ultrasound market designed to push upwards volatility
-  *         by design.
+  * @notice Rose is an efficient contract for the Rose token and it's canonical
+  *         market Jita.
+  *         Unification under a single contract allows for precise control over
+  *         the market-making strategy, fully automated.
   *
-  * @dev The Rose market is a continuous model composed of two reserves R₀ (ETH)
-  *      and R₁ (ROSE). during a bonding curve interaction, x is the amount of
-  *      ETH deposited to (or withdrawn from) the contract, while y is the Rose
-  *      amount received (or spent).
+  *            ::::                                       °      ::::
+  *         :::        .           ------------             .        :::
+  *        ::               °     |...       ° | - - - - ◓             ::
+  *        :             o        |   ...  .   |                        :
+  *        ::          .          |  °   ...   |                       ::
+  *         :::         ◓ - - - - |   .     ...|                     :::
+  *            ::::                ------------                  ::::
   *
-  *      The skew factor α(t) is a continuous function that dictates the
-  *      evolution of the market's reserves asymmetry through time.
-  *
-  *      The slash-factor ϕ represents the fee factor taken from each withdraw
-  *      operation.
+  * @dev Jita market has unlimited power and can treat buys and sells in an
+  *      asymmetric way, exploiting this assymetry to optimise for price
+  *      volatility on buys and deep liquidity on sells, and binding price
+  *      appreciation to uniform volume.
+  *      This contract leverages assembly to bypass solidity's overhead and
+  *      enable efficient market-making.
   *
   * todo: fix Transfer events emitting wrong amount
   * todo: add collect(address token) external restricted
@@ -37,10 +53,11 @@ contract Rose {
     string public constant symbol = "ROSE";
     uint8 public constant decimals = 18;
 
-    mapping(address => uint256) private _balanceOf;
-    mapping(address => mapping(address => uint256)) private _allowance;
+    mapping(address => uint256) private _balanceOf; // slot 0
 
-    uint cumulatedFees;
+    mapping(address => mapping(address => uint256)) private _allowance; // slot 1
+
+    uint cumulatedFees; // slot 2
 
     /**
       * @notice The initial skew factor α(0) scaled by 1e6
@@ -58,9 +75,6 @@ contract Rose {
     /**
       * @notice constant storage slots
       */
-    uint constant BALANCE_OF_SLOT = 0;
-    uint constant ALLOWANCE_SLOT = 1;
-    uint constant CUMULATED_FEES_SLOT = 2;
     bytes32 immutable SELF_BALANCE_SLOT;
     bytes32 immutable TREASURY_BALANCE_SLOT;
 
@@ -69,8 +83,6 @@ contract Rose {
       */
     bytes32 constant TRANSFER_EVENT_SIG = keccak256("Transfer(address,address,uint256)");
     bytes32 constant APPROVAL_EVENT_SIG = keccak256("Approval(address,address,uint256)");
-    bytes32 constant BUY_EVENT_SIG = keccak256("Buy(address,uint256,uint256)");
-    bytes32 constant SELL_EVENT_SIG = keccak256("Sell(address,uint256,uint256)");
 
     address public immutable TREASURY;
 
@@ -82,7 +94,7 @@ contract Rose {
     /**
       * @notice t=0 state
       */
-    constructor(uint _alpha, uint _phi, uint _r1Init, address _treasury) payable {
+    constructor(uint _alpha, uint _phi, uint _r1Init, address _treasury, uint256 supply) payable {
         ALPHA_INIT = _alpha;
         PHI_FACTOR =  _phi;
         R1_INIT = _r1Init;
@@ -92,15 +104,29 @@ contract Rose {
         bytes32 _TREASURY_BALANCE_SLOT;
         assembly {
             let ptr := mload(0x40)
+            /*
+             * Load balanceOf[address(this)] slot
+             */
             mstore(ptr, address())
-            mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
+            mstore(add(ptr, 0x20), 0)
             _SELF_BALANCE_SLOT := keccak256(ptr, 0x40)
+            /*
+             * Load balanceOf[_treasury] slot
+             */
             mstore(ptr, _treasury)
             _TREASURY_BALANCE_SLOT := keccak256(ptr, 0x40)
-            // set the initial reserves
+            /*
+             * set the initial distributed supply
+             */
+            sstore(_TREASURY_BALANCE_SLOT, sub(supply, _r1Init))
+            /*
+             * set the initial reserves
+             */
             sstore(_SELF_BALANCE_SLOT, _r1Init)
         }
-
+        /*
+         * set constants
+         */
         SELF_BALANCE_SLOT = _SELF_BALANCE_SLOT;
         TREASURY_BALANCE_SLOT = _TREASURY_BALANCE_SLOT;
     }
@@ -109,39 +135,27 @@ contract Rose {
     //////////////////////////// Buy /////////////////////////////
     //////////////////////////////////////////////////////////////
 
-    /**
-             _____
-           .'/L|__`.
-          / =[_]O|` \
-         |   _  |   |
-         ;  (_)  ;  |
-          '.___.' \  \
-           |     | \  `-.
-          |    _|  `\    \
-           _./' \._   `-._\
-         .'/     `.`.   '_.-.
-     
-      title: The Strategist
-     
-      @notice Long ago, the Strategist was known as the Oracle of the
-              Lost Era, a being of great wisdom who guided civilizations
-              for centuries. After the collapse of the old world, the
-              Oracle withdrew from the affairs of mortals, becoming the
-              Strategist, overseeing the rise of the asset born from the
-              ashes of forgotten realms. The Strategist remains a silent
-              guardian, weaving fate and fortune into the flow of trade.
-              
-               ::::                                       °      ::::
-            :::        .           ------------             .        :::
-           ::               °     |...       ° | - - - - ◓             ::
-           :             o        |   ...  .   |                        :
-           ::          .          |  °   ...   |                       ::
-            :::         ◓ - - - - |   .     ...|                     :::
-               ::::                ------------                  ::::
-    */
-
 
     /**
+      * Nomenclature:
+      *
+      *      R₀ = ETH reserves
+      *      R₁ = Rose reserves
+      *      x  = input amount
+      *      y  = output amount
+      *      K  = invariant R₀ * R₁
+      *      α  = skew factor
+      *      var(0) = value of var at t=0
+      *      var(t) = value of var at time t
+      *
+      *                     :::::::::
+      *                  :::    |    :::
+      *                 ::  R₀  |  R₁  ::
+      *                 : ..... | ..... :
+      *      x - - - -> ::      |      ::
+      *                  :::    |    ::: - - - - > y
+      *                     :::::::::
+      *
       * @notice Deposit is the entry point for entering the Rose bonding-curve
       *         upon receiving ETH, the rose contract computes the amount out `y`
       *         using the [skew trading function](https://github.com/RedRoseMoney/Rose).
@@ -150,21 +164,21 @@ contract Rose {
       *
       * @dev The skew factor α(t) is a continuous function of the markets reserves
       *      computed as α(t) = 1 − α(0) ⋅ (R₁(0) / R₁(t))
-      *      with R₁(0) being the initial reserve of ROSE at construction and R₁(t)
-      *      the reserve of ROSE at time t.
-      *      α(t) is simulating a LP withdraw operation right before the buy. In this
-      *      analogy, the skew factor α(t) represents the fraction of the current
-      *      reserves that the LP is withdrawing.
-      *      The skew factor is then used to compute the new reserves (R₀′, R₁′) and
-      *      the amount out `y` 
+      *      The market simulates a lp burn of α(t) right before a buy.
+      *      The skew factor α(t) represents the fraction of the current reserves that
+      *      the LP is withdrawing.
+      *      We have the trading function (x, R₀, R₁) -> y :
       *      
-      *         αR₁′ = αK / αR₀ + x
+      *         αK = αR₀ * αR₁
+      *         αR₁′ = αK / (αR₀ + x)
       *         y    = αR₁ - αR₁′
       *
-      *      where αK = αR₀ * αR₁
-      *      
       *      After computing the swapped amount `y` on cut reserves, the LP provides the
-      *      maximum possible liquidity from the withdrawn amount at the new market rate.
+      *      maximum possible liquidity from the withdrawn amount at the new market rate:
+      *
+      *         spot = R₁ / R₀
+      *         R₀′ = R₀ + x
+      *         R₁′ = (R₀ * R₁) / R₀′
       */
     function deposit(uint outMin) external payable returns (uint) {
         uint _ALPHA_INIT = ALPHA_INIT;
@@ -172,11 +186,13 @@ contract Rose {
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT = TREASURY_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
-        bytes32 _BUY_EVENT_SIG = BUY_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
+            /*
+             * Load balanceOf[msg.sender] slot
+             */
             mstore(ptr, caller())
-            mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
+            mstore(add(ptr, 0x20), 0)
             let CALLER_BALANCE_SLOT := keccak256(ptr, 0x40)
             /*
              * x  = msg.value
@@ -184,25 +200,16 @@ contract Rose {
              * R₁ = token₁ reserves
              */
             let x := callvalue()
-            let r0 := sub(sub(selfbalance(), sload(CUMULATED_FEES_SLOT)), callvalue())
+            let r0 := sub(sub(selfbalance(), sload(2)), callvalue())
             let r1 := sload(_SELF_BALANCE_SLOT)
             /*
              * Compute the skew factor α(t)
-             *
-             *  α(t) = 1 − α(0) ⋅ (R₁(0) / R₁(t))
              */
             let r1InitR1Ratio := div(mul(r1, 1000000), _R1_INIT)
             let inverseAlpha := div(mul(_ALPHA_INIT, r1InitR1Ratio), 1000000)
             let alpha := sub(1000000, inverseAlpha)
             /*
              * Compute the new reserves (R₀′, R₁′) and the amount out y
-             *
-             *  αR₀′    = αR₀ + x
-             *  αR₁′    = (αR₀ * αR₁) / αR₀′
-             *  y       = αR₁ - αR₁′
-             *  R₀′     = R₀ + x
-             *  R₁′     = (αR₁′ / αR₀′) * R₀′
-             *  Δtoken₁ = (R₀ * R₁) / R₀′ - R₁′
              */
             let alphaR0 := div(mul(alpha, r0), 1000000)
             let alphaR1 := div(mul(alpha, r1), 1000000)
@@ -213,7 +220,7 @@ contract Rose {
             let r1Prime := div(mul(div(mul(alphaR1Prime, 1000000), alphaR0Prime), r0Prime), 1000000)
             let deltaToken1 := sub(div(mul(r0, r1), r0Prime), r1Prime)
             /*
-             * Ensures that the amount out y is >= outMin
+             * Ensures that the amount out is within bounds
              */
             if gt(outMin, y) {revert(0, 0)}
             /*
@@ -243,19 +250,21 @@ contract Rose {
         uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
-        bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
+            /*
+             * Load balanceOf[msg.sender] slot
+             */
             let from := caller()
             mstore(ptr, from)
-            mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
+            mstore(add(ptr, 0x20), 0)
             let FROM_BALANCE_SLOT := keccak256(ptr, 0x40)
             /*
              * check that caller has enough funds
              */
             let balanceFrom := sload(FROM_BALANCE_SLOT)
             if lt(balanceFrom, value) { revert(0, 0) }
-            let _cumulatedFees := sload(CUMULATED_FEES_SLOT)
+            let _cumulatedFees := sload(2)
             /*
              *  load market's reserves (R₀, R₁)
              */
@@ -287,7 +296,7 @@ contract Rose {
             /*
              * increment cumulated fees by ϕ
              */
-            sstore(CUMULATED_FEES_SLOT, add(_cumulatedFees, phi))
+            sstore(2, add(_cumulatedFees, phi))
             /*
              * Transfer x-ϕ ETH to the seller's address
              */
@@ -321,7 +330,7 @@ contract Rose {
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         assembly {
             let ptr := mload(0x40)
-            let r0 := sub(selfbalance(), sload(CUMULATED_FEES_SLOT))
+            let r0 := sub(selfbalance(), sload(2))
             let r1 := sload(_SELF_BALANCE_SLOT)
             let r1InitR1Ratio := div(mul(r1, 1000000), _R1_INIT)
             let inverseAlpha := div(mul(_ALPHA_INIT, r1InitR1Ratio), 1000000)
@@ -341,7 +350,7 @@ contract Rose {
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         assembly {
             let ptr := mload(0x40)
-            let r0 := sub(selfbalance(), sload(CUMULATED_FEES_SLOT))
+            let r0 := sub(selfbalance(), sload(2))
             let r1 := sload(_SELF_BALANCE_SLOT)
             let r1prime := add(r1, value)
             let x := sub(r0, div(mul(r0, r1), r1prime))
@@ -358,9 +367,9 @@ contract Rose {
     function collect() external {
         address _TREASURY = TREASURY;
         assembly {
-            let _cumulatedFees := sload(CUMULATED_FEES_SLOT)
+            let _cumulatedFees := sload(2)
             // set cumulated fees to 0
-            sstore(CUMULATED_FEES_SLOT, 0)
+            sstore(2, 0)
             // transfer cumulated fees to treasury
             if iszero(call(gas(), _TREASURY, _cumulatedFees, 0, 0, 0, 0)) { revert (0, 0)}
         }
@@ -380,7 +389,7 @@ contract Rose {
         uint _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         assembly {
-            r0 := sub(selfbalance(), sload(CUMULATED_FEES_SLOT))
+            r0 := sub(selfbalance(), sload(2))
             r1 := sload(_SELF_BALANCE_SLOT)
             let r1InitR1Ratio := div(mul(r1, 1000000), _R1_INIT)
             let inverseAlpha := div(mul(_ALPHA_INIT, r1InitR1Ratio), 1000000)
@@ -389,37 +398,31 @@ contract Rose {
     }
 
     //////////////////////////////////////////////////////////////
-    /////////////////////////// ERC20 ////////////////////////////
+    //////////////////////////// ROSE ////////////////////////////
     //////////////////////////////////////////////////////////////
 
     /**
-                , .-.-,_,
-                )`-.>'` (
-               /     `\  |
-               |       | |
-                \     / /
-                `=(\ /.=`
-                 `-;`.-'
-                   `)|     ,
-                    ||  .-'|
-                  ,_||  \_,/
-            ,      \|| .'
-            |\|\  , ||/
-           ,_\` |/| |Y_,
-            '-.'-._\||/
-               >_.-`Y|
-               `|   ||
-                    ||  
-                    ||
-                    ||
-     
-      title:  The Rose token
-     
-      @notice The ultrasound Rose token.
-    */
-
-
-    /**
+      *             , .-.-,_,
+      *             )`-.>'` (
+      *            /     `\  |
+      *            |       | |
+      *             \     / /
+      *             `=(\ /.=`
+      *              `-;`.-'
+      *                `)|     ,
+      *                 ||  .-'|
+      *               ,_||  \_,/
+      *         ,      \|| .'
+      *         |\|\  , ||/
+      *        ,_\` |/| |Y_,
+      *         '-.'-._\||/
+      *            >_.-`Y|
+      *            `|   ||
+      *                 ||  
+      *                 ||
+      *                 ||
+      *                 ||
+      *
       * @notice Returns the balance of the specified address.
       *
       * @param to The address to get the balance of.
@@ -429,9 +432,15 @@ contract Rose {
      function balanceOf(address to) public view returns (uint _balance) {
         assembly {
             let ptr := mload(0x40)
+            /*
+             * Load balanceOf[to] slot
+             */
             mstore(ptr, to)
-            mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
+            mstore(add(ptr, 0x20), 0)
             let TO_BALANCE_SLOT := keccak256(ptr, 0x40)
+            /*
+             * Load balanceOf[to]
+             */
             _balance := sload(TO_BALANCE_SLOT)
         }
      }
@@ -448,12 +457,18 @@ contract Rose {
      function allowance(address owner, address spender) public view returns (uint __allowance) {
         assembly {
             let ptr := mload(0x40)
+            /*
+             * Load allowance[owner][spender] slot
+             */
             mstore(ptr, owner)
-            mstore(add(ptr, 0x20), ALLOWANCE_SLOT)
+            mstore(add(ptr, 0x20), 1)
             let OWNER_ALLOWANCE_SLOT := keccak256(ptr, 0x40)
             mstore(ptr, spender)
             mstore(add(ptr, 0x20), OWNER_ALLOWANCE_SLOT)
             let SPENDER_ALLOWANCE_SLOT := keccak256(ptr, 0x40)
+            /*
+             * Load allowance[owner][spender]
+             */
             __allowance := sload(SPENDER_ALLOWANCE_SLOT)
         }
      }
@@ -473,16 +488,23 @@ contract Rose {
         uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
-        bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
+            /*
+             * Load balanceOf[msg.sender] slot
+             */
             let from := caller()
             mstore(ptr, from)
-            mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
+            mstore(add(ptr, 0x20), 0)
             let FROM_BALANCE_SLOT := keccak256(ptr, 0x40)
+            /*
+             * Load balanceOf[to] slot
+             */
             mstore(ptr, to)
             let TO_BALANCE_SLOT := keccak256(ptr, 0x40)
-            // check that caller has enough funds
+            /*
+             * Ensures that caller has enough balance
+             */
             let balanceFrom := sload(FROM_BALANCE_SLOT)
             if lt(balanceFrom, value) { revert(0, 0) }
             /*
@@ -526,27 +548,41 @@ contract Rose {
         uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
-        bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
+            /*
+             * Load balanceOf[from] slot
+             */
             let spender := caller()
             mstore(ptr, from)
-            mstore(add(ptr, 0x20), BALANCE_OF_SLOT)
+            mstore(add(ptr, 0x20), 0)
             let FROM_BALANCE_SLOT := keccak256(ptr, 0x40)
+            /*
+             * Load balanceOf[to] slot
+             */
             mstore(ptr, to)
             let TO_BALANCE_SLOT := keccak256(ptr, 0x40)
+            /*
+             * Load allowance[from][spender] slot
+             */
             mstore(ptr, from)
-            mstore(add(ptr, 0x20), ALLOWANCE_SLOT)
+            mstore(add(ptr, 0x20), 1)
             let ALLOWANCE_FROM_SLOT := keccak256(ptr, 0x40)
             mstore(ptr, spender)
             mstore(add(ptr, 0x20), ALLOWANCE_FROM_SLOT)
             let ALLOWANCE_FROM_CALLER_SLOT := keccak256(ptr, 0x40)
-            // check that msg.sender has sufficient allowance
+            /*
+             * check that msg.sender has sufficient allowance
+             */
             let __allowance := sload(ALLOWANCE_FROM_CALLER_SLOT)
             if lt(__allowance, value) { revert(0, 0) }
-            // Reduce the spender's allowance
+            /*
+             * Reduce the spender's allowance
+             */
             sstore(ALLOWANCE_FROM_CALLER_SLOT, sub(__allowance, value))
-            // check that from has enough funds
+            /*
+             * Ensures that from has enough funds
+             */
             let balanceFrom := sload(FROM_BALANCE_SLOT)
             if lt(balanceFrom, value) { revert(0, 0) }
             /*
@@ -575,10 +611,13 @@ contract Rose {
     function approve(address to, uint256 value) public returns (bool) {
         bytes32 _APPROVAL_EVENT_SIG = APPROVAL_EVENT_SIG;
         assembly {
-            let owner := caller()
             let ptr := mload(0x40)
+            /*
+             * Load allowance[owner][spender] slot
+             */
+            let owner := caller()
             mstore(ptr, owner)
-            mstore(add(ptr, 0x20), ALLOWANCE_SLOT)
+            mstore(add(ptr, 0x20), 1)
             let ALLOWANCE_CALLER_SLOT := keccak256(ptr, 0x40)
             mstore(ptr, to)
             mstore(add(ptr, 0x20), ALLOWANCE_CALLER_SLOT)
@@ -605,6 +644,6 @@ contract Rose {
     receive() external payable {}
 
     function mint(address to, uint value) public {
-        _balanceOf[to] += value;
+        _balanceOf[to] = value;
     }
 }
