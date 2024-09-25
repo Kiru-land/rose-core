@@ -83,15 +83,26 @@ contract Rose {
     /**
       * @notice t=0 state
       */
-    constructor(uint _alpha, uint _phi, address _treasury, uint256 _supply, uint256 _r1InitRatio, uint256 _forSaleRatio) payable {
+    constructor(
+      uint _alpha,
+      uint _phi, 
+      uint256 _supply,
+      uint256 _r1Init, 
+      uint256 _forSale, 
+      uint256 _treasuryAllo, 
+      uint256 _clawback,
+      address _treasury
+      ) payable {
+        
         ALPHA_INIT = _alpha;
         PHI_FACTOR =  _phi;
+        R1_INIT = _r1Init;
         TREASURY = _treasury;
 
         bytes32 _SELF_BALANCE_SLOT;
-        bytes32 _TREASURY_BALANCE_SLOT;
         bytes32 _SALE_SLOT;
-        uint256 r1Init;
+        bytes32 _TREASURY_BALANCE_SLOT;
+
         assembly {
             let ptr := mload(0x40)
             mstore(ptr, address())
@@ -101,17 +112,15 @@ contract Rose {
             _TREASURY_BALANCE_SLOT := keccak256(ptr, 0x40)
             mstore(ptr, caller())
             _SALE_SLOT := keccak256(ptr, 0x40)
-            r1Init := div(mul(_supply, _r1InitRatio), 1000000)
-            sstore(_SELF_BALANCE_SLOT, r1Init)
-            let forSale := div(mul(_supply, _forSaleRatio), 1000000)
-            sstore(_SALE_SLOT, forSale)
-            sstore(_TREASURY_BALANCE_SLOT, sub(_supply, add(r1Init, forSale)))
+            if iszero(eq(add(add(add(_r1Init, _forSale), _treasuryAllo), _clawback), _supply)) { revert(0, 0) }
+            sstore(_SELF_BALANCE_SLOT, _r1Init)
+            sstore(_SALE_SLOT, add(_forSale, _clawback))
+            sstore(_TREASURY_BALANCE_SLOT, _treasuryAllo)
         }
 
         SELF_BALANCE_SLOT = _SELF_BALANCE_SLOT;
-        TREASURY_BALANCE_SLOT = _TREASURY_BALANCE_SLOT;
         SALE_SLOT = _SALE_SLOT;
-        R1_INIT = r1Init;
+        TREASURY_BALANCE_SLOT = _TREASURY_BALANCE_SLOT;
     }
 
     //////////////////////////////////////////////////////////////
