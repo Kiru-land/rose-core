@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-// TODO: a way to collect the ETH to TOKEN.TREASURY(), or a way to permisionlessly add liquidity to the pool and keep some
-// TODO a way to keep some funds in the contract in case of refunds
 
 import "./Rose.sol";
 
@@ -17,8 +15,26 @@ contract PublicSale {
     uint256 public immutable HARD_CAP;
     // Timestamp when the sale will end
     uint256 public immutable SALE_END;
-    // Percentage of raised funds to be used for liquidity (in basis points)
+    // Percentage of raised funds for liquidity (in basis points)
     uint256 public immutable LIQ_RATIO;
+
+    // ***** Deploy parameters *****
+    // R0_INIT is the initial reserve of ROSE R₁(0)
+    uint256 public constant R0_INIT = 1 ether;
+    // ALPHA_INIT is the initial skew factor
+    uint256 public constant ALPHA = 10_000;
+    // PHI_FACTOR is the slash factor
+    uint256 public constant PHI = 1_000;
+    // SUPPLY is the total supply of tokens
+    uint256 public constant SUPPLY = 1_000_000_000 * 1e18;
+    // R1_INIT is the initial reserve of ROSE R₁(0)
+    uint256 public constant R1_INIT = 200_000_000 * 1e18;   
+    // FOR_SALE is the amount of tokens to be sold in the sale
+    uint256 public constant FOR_SALE = 620_000_000 * 1e18;
+    // TREASURY_ALLOCATION is the amount of tokens to be allocated to the treasury
+    uint256 public constant TREASURY_ALLOCATION = 80_000_000 * 1e18;
+    // CLAWBACK is the amount of tokens to be allocated to communities
+    uint256 public constant CLAWBACK = 100_000_000 * 1e18;
 
     // Total amount of funds raised in the sale
     uint256 public totalRaised; // slot 0
@@ -45,7 +61,13 @@ contract PublicSale {
      * @param liqRatio Percentage of raised funds for liquidity (in basis points)
      * @param _treasury Address of the treasury
      */
-    constructor(uint256 _softCap, uint256 _hardCap, uint256 _duration, uint256 liqRatio, address _treasury) {
+    constructor(
+        uint256 _softCap, 
+        uint256 _hardCap, 
+        uint256 _duration, 
+        uint256 liqRatio, 
+        address _treasury
+    ) {
         SOFT_CAP = _softCap;
         HARD_CAP = _hardCap;
         SALE_END = block.timestamp + _duration;
@@ -80,7 +102,7 @@ contract PublicSale {
     function endSale() external {
         uint _SALE_END = SALE_END;
         assembly {
-            if lt(_SALE_END, timestamp()) { revert(0, 0) }
+            if lt(timestamp(), _SALE_END) { revert(0, 0) }
             if sload(saleEnded.slot) { revert(0, 0) }
             sstore(saleEnded.slot, 1)
         }
@@ -152,10 +174,10 @@ contract PublicSale {
     }
 
     /**
-     * @dev Function to finalize the sale and distribute funds
+     * @dev Internalunction to finalize the sale and distribute funds
      * Sends funds to the token contract for liquidity and to the treasury
      */
-    function wrapUp() external {
+    function _wrapUp() internal {
         uint256 _HARD_CAP = HARD_CAP;
         uint256 _LIQ_RATIO = LIQ_RATIO;
         uint256 _SOFT_CAP = SOFT_CAP;
@@ -173,6 +195,7 @@ contract PublicSale {
             // Calculate the amount to send to TOKEN contract
             let liqAmount
             let treasuryAmount
+            
             if lt(totalRaisedValue, _HARD_CAP) {
                 // If SOFT_CAP < totalRaised < HARD_CAP
                 liqAmount := div(mul(totalRaisedValue, _LIQ_RATIO), 1000000)
@@ -201,18 +224,26 @@ contract PublicSale {
 
     /**
      * @dev Function to deploy the token contract
-     * @param _alpha Alpha parameter for the token contract
-     * @param _phi Phi parameter for the token contract
-     * @param _supply Total supply of tokens
-     * @param _r1InitRatio Initial ratio for R1 in the token contract
-     * @param _forSaleRatio Ratio of tokens to be sold in the sale
-     * @return Address of the deployed token contract
      */
-    function deploy(uint _alpha, uint _phi, uint256 _supply, uint256 _r1InitRatio, uint256 _forSaleRatio) external payable returns (address) {
-        require(msg.sender == OWNER, "Only owner can deploy");
+    function deploy() external payable returns (address) {
+        require(totalRaised >= SOFT_CAP, "Soft cap not met");
         require(address(token) == address(0), "Token already deployed");
-        token = address(new Rose{value: msg.value}(_alpha, _phi, TREASURY, _supply, _r1InitRatio, _forSaleRatio));
-        toSell = Rose(payable(token)).balanceOf(address(this));
+        require(saleEnded, "Sale must end before deploying token");
+        require(msg.value >= R0_INIT, "Insufficient Ether for deployment");
+        token = address(new Rose{value: R0_INIT}(
+            ALPHA, 
+            PHI, 
+            SUPPLY, 
+            R1_INIT, 
+            FOR_SALE, 
+            TREASURY_ALLOCATION, 
+            CLAWBACK,
+            TREASURY
+        ));
+        toSell = Rose(payable(token)).balanceOf(address(this)) - CLAWBACK;
+        _wrapUp();
         return token;
     }
+
+    // TODO: airdrop mechanism using CLAWBACK
 }
