@@ -11,27 +11,32 @@ contract SaleTest is Test {
     PublicSale public sale;
     address public user1;
     address public user2;
-    address public treasury;
-    address public owner;
-    address public notOwner;
-    uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 1e18;
+
+    // Public sale constructor parameters
     uint256 public constant SOFT_CAP = 100 ether;
     uint256 public constant HARD_CAP = 200 ether;
     uint256 public constant DURATION = 7 days;
-    uint256 public constant LIQ_RATIO = 9000;
+    uint256 public constant LIQ_RATIO = 8000;
+    address public treasury;
+
+    // Rose constructor parameters  
+    uint256 public constant R0_INIT = 1e18;
+    uint256 public constant ALPHA = 1e5;
+    uint256 public constant PHI = 1e4;
+    uint256 public constant SUPPLY = 1_000_000_000 * 1e18;
+    uint256 public constant R1_INIT = 200_000_000 * 1e18;
+    uint256 public constant FOR_SALE = 620_000_000 * 1e18;
+    uint256 public constant TREASURY_ALLOCATION = 80_000_000 * 1e18;
+    uint256 public constant CLAWBACK = 100_000_000 * 1e18;
+    address public constant TREASURY = address(0x3);
 
     function setUp() public {
         user1 = address(0x1);
         user2 = address(0x2);
         treasury = address(0x3);
-        owner = address(0x4);
-        notOwner = address(0x5);
 
-        vm.prank(owner);
         sale = new PublicSale(SOFT_CAP, HARD_CAP, DURATION, LIQ_RATIO, treasury);
 
-        vm.deal(owner, 10000000 ether);
-        vm.deal(notOwner, 10000000 ether);
         vm.deal(user1, 1000 ether);
         vm.deal(user2, 1000 ether);
     }
@@ -48,21 +53,24 @@ contract SaleTest is Test {
 
     /// @notice Tests the contribution functionality of the PublicSale contract
     /// @dev Verifies that a user can contribute ETH and that the contract state updates correctly
-    function testContribute() public {
+    function testContribute(uint256 contribution, uint256 duration) public {
+        duration = bound(duration, DURATION + 1, DURATION * 2);
+        contribution = bound(contribution, 2, user1.balance);
         vm.prank(user1);
-        (bool success, ) = address(sale).call{value: 50 ether}("");
+        (bool success, ) = address(sale).call{value: contribution}("");
         assertTrue(success);
 
         // Contribution is the raised amount
-        assertEq(sale.totalRaised(), 50 ether);
+        assertEq(sale.totalRaised(), contribution);
         // User's contribution has been added
-        assertEq(getContribution(user1), 50 ether);
+        assertEq(getContribution(user1), contribution);
     }
 
     /// @notice Tests that contributions fail after the sale end time
     /// @dev Attempts to contribute after the sale duration and expects the transaction to revert
-    function testFailContributeFailsAfterEndTime() public {
-        vm.warp(block.timestamp + DURATION + 1);
+    function testFailContributeFailsAfterEndTime(uint256 duration) public {
+        duration = bound(duration, DURATION + 1, DURATION * 2);
+        vm.warp(block.timestamp + duration);
         vm.prank(user1);
         vm.expectRevert();
         (bool success, ) = address(sale).call{value: 50 ether}("");
@@ -72,8 +80,9 @@ contract SaleTest is Test {
 
     /// @notice Tests the endSale function of the PublicSale contract
     /// @dev Verifies that the sale can be ended after the duration has passed
-    function testEndSale() public {
-        vm.warp(block.timestamp + DURATION);
+    function testEndSale(uint256 duration) public {
+        duration = bound(duration, DURATION + 1, DURATION * 2);
+        vm.warp(block.timestamp + duration);
         sale.endSale();
         // Sale is ended
         assertTrue(sale.saleEnded());
@@ -81,8 +90,9 @@ contract SaleTest is Test {
 
     /// @notice Tests that ending the sale fails before the end time
     /// @dev Attempts to end the sale before the duration has passed and expects it to revert
-    function testFailSaleFailsBeforeEndTime() public {
-        vm.warp(block.timestamp + DURATION - 1);
+    function testEndSaleFailsBeforeEndTime(uint256 duration) public {
+        duration = bound(duration, 1, DURATION - 1);
+        vm.warp(block.timestamp + duration);
         // Reverts because sale is not ended
         vm.expectRevert();
         sale.endSale();
@@ -114,7 +124,7 @@ contract SaleTest is Test {
         (bool success2, ) = address(sale).call{value: contribution2}("");
         assertTrue(success2);
 
-        vm.warp(block.timestamp + DURATION);
+        vm.warp(block.timestamp + DURATION + 1);
         sale.endSale();
 
         uint256 user1BalanceBefore = user1.balance;
@@ -162,15 +172,14 @@ contract SaleTest is Test {
         (bool success2, ) = address(sale).call{value: contribution2}("");
         assertTrue(success2);
 
-        vm.warp(block.timestamp + DURATION);
+        vm.warp(block.timestamp + DURATION + 1);
         sale.endSale();
 
         uint256 user1BalanceBefore = user1.balance;
         uint256 user2BalanceBefore = user2.balance;
 
         // Deploy ROSE contract
-        vm.prank(owner);
-        ERC20 rose = ERC20(sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000));
+        Rose rose = Rose(payable(sale.deploy{value: R0_INIT}()));
 
         vm.prank(user1);
         sale.claim();
@@ -199,7 +208,10 @@ contract SaleTest is Test {
         assertTrue(getHasClaimed(user2));
 
         // Sale contract has no tokens left (or very small amount due to rounding)
-        assertLe(rose.balanceOf(address(sale)), 1e9);
+        assertGe(rose.balanceOf(address(sale)), CLAWBACK);
+
+        // No ETH is left in the sale contract
+        assertEq(address(sale).balance, 0);
     }
 
     /// @notice Tests the claim process when the sale is oversubscribed
@@ -242,15 +254,14 @@ contract SaleTest is Test {
         (bool success2, ) = address(sale).call{value: contribution2}("");
         assertTrue(success2);
 
-        vm.warp(block.timestamp + DURATION);
+        vm.warp(block.timestamp + DURATION + 1);
         sale.endSale();
 
         uint256 user1BalanceBefore = user1.balance;
         uint256 user2BalanceBefore = user2.balance;
 
         // Deploy ROSE contract
-        vm.prank(owner);
-        ERC20 rose = ERC20(sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000));
+        Rose rose = Rose(payable(sale.deploy{value: R0_INIT}()));
 
         vm.prank(user1);
         sale.claim();
@@ -278,8 +289,11 @@ contract SaleTest is Test {
         uint256 expectedRefund2 = (contribution2 * totalRefund) / totalContribution;
         assertApproxEqAbs(user2.balance, user2BalanceBefore + expectedRefund2, 1e6);
 
-        // Sale contract has no tokens left (or very small amount due to rounding)
-        assertLe(rose.balanceOf(address(sale)), 1e9);
+        // CLAWBACK is still in the sale contract
+        assertGe(rose.balanceOf(address(sale)), CLAWBACK);
+
+        // No ETH is left in the sale contract
+        assertApproxEqAbs(address(sale).balance, 0, 1e4);
 
         // Both users have claimed
         assertTrue(getHasClaimed(user1));
@@ -287,9 +301,6 @@ contract SaleTest is Test {
 
         // Total tokens distributed should equal TO_SELL (allow for small rounding error)
         assertApproxEqAbs(actualTokens1 + actualTokens2, sale.toSell(), 1e9);
-
-        // Total ETH in contract should equal HARD_CAP (allow for small rounding error)
-        assertApproxEqAbs(address(sale).balance, HARD_CAP, 1e4);
     }
 
     /// @notice Tests that users cannot claim twice
@@ -299,7 +310,7 @@ contract SaleTest is Test {
         (bool success, ) = address(sale).call{value: 5 ether}("");
         assertTrue(success, "Contribution failed");
 
-        vm.warp(block.timestamp + DURATION);
+        vm.warp(block.timestamp + DURATION + 1);
         sale.endSale();
 
         vm.prank(user1);
@@ -315,7 +326,7 @@ contract SaleTest is Test {
     /// @notice Tests that non-contributors cannot claim
     /// @dev Attempts to claim without contributing and expects it to revert
     function testCannotClaimIfNotContributed() public {
-        vm.warp(block.timestamp + DURATION);
+        vm.warp(block.timestamp + DURATION + 1);
         sale.endSale();
 
         vm.prank(user1);
@@ -323,133 +334,156 @@ contract SaleTest is Test {
         vm.expectRevert();
         sale.claim();
     }
-    
-    /// @notice Tests the deployment of the Rose contract
-    /// @dev Verifies correct token distribution after deployment
-    function testDeployRoseContract() public {
-        uint256 supply = 1e20;
-        uint256 r1InitRatio = 200000;
-        uint256 forSaleRatio = 700000;
-        vm.prank(owner);
-        ERC20 rose = ERC20(sale.deploy{value: 1e17}(1e5, 1e4, supply, r1InitRatio, forSaleRatio));
-        assertEq(rose.balanceOf(address(rose)), (r1InitRatio * supply) / 1e6);
-        assertEq(rose.balanceOf(address(sale)), (forSaleRatio * supply) / 1e6);
-        assertEq(rose.balanceOf(treasury), supply - ((r1InitRatio + forSaleRatio) * supply) / 1e6); 
-    }
 
-    /// @notice Tests that non-owners cannot deploy the Rose contract
-    /// @dev Attempts to deploy the Rose contract as a non-owner and expects it to revert
-    function testDeployRoseNotOwner() public {
-        vm.prank(notOwner);
-        vm.expectRevert();
-        sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
+    /// @notice Tests the deployment of the Rose contract and expect revert since soft cap is not reached
+    /// @dev Verifies correct token distribution after deployment
+    function testCannotDeployRoseContractWhenSoftCapIsNotReached(uint256 contribution) public {
+        contribution = bound(contribution, 1, SOFT_CAP - 1);
+        vm.prank(user1);
+        (bool success, ) = address(sale).call{value: contribution}("");
+        assertTrue(success);
+
+        vm.warp(block.timestamp + DURATION + 1);
+        sale.endSale();
+        vm.expectRevert("Soft cap not met");
+        sale.deploy{value: R0_INIT}();
     }
 
     /// @notice Tests that the Rose contract cannot be deployed twice
     /// @dev Attempts to deploy the Rose contract twice and expects the second attempt to revert
-    function testDeployRoseAlreadyDeployed() public {
-        vm.prank(owner);
-        sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
-        vm.prank(owner);
-        vm.expectRevert();
-        sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
-    }
+    function testCannotDeployRoseAlreadyDeployed(uint256 contribution, uint256 duration) public {
+        contribution = bound(contribution, SOFT_CAP + 1, HARD_CAP);
+        duration = bound(duration, DURATION + 1, DURATION * 2);
 
-    /// @notice Tests that wrapUp cannot be called before the sale ends
-    /// @dev Attempts to call wrapUp before the sale duration has passed and expects it to revert
-    function testCantWrapUpBeforeSaleEnds() public {
-        vm.expectRevert();
-        sale.wrapUp();
-    }
-
-    /// @notice Tests that wrapUp cannot be called if the token is not deployed
-    /// @dev Attempts to call wrapUp after the sale ends but before token deployment and expects it to revert
-    function testCantWrapUpIfTokenNotDeployed() public {
-        vm.warp(block.timestamp + DURATION);
-
+        vm.prank(user1);
+        (bool success, ) = address(sale).call{value: contribution}("");
+        assertTrue(success);
+        vm.warp(block.timestamp + duration);
+        console.log("sale end at", sale.SALE_END());
+        console.log("block time", block.timestamp);
         sale.endSale();
 
-        vm.expectRevert();
-        sale.wrapUp();
+        sale.deploy{value: R0_INIT}();
+        // Deploy again and expect revert
+        vm.expectRevert("Token already deployed");
+        sale.deploy{value: R0_INIT}();
     }
 
-    /// @notice Tests that wrapUp fails when the soft cap is not reached
-    /// @dev Simulates a contribution below the soft cap, ends the sale, deploys the token, and expects wrapUp to revert
-    function testWrapUpSoftCapNotReached() public {
-        // Contribute less than soft cap
+    /// @notice Tests the deployment of the Rose contract and expect revert since sale is not ended
+    /// @dev Verifies correct token distribution after deployment
+    function testCannotDeployRoseContractWhenSaleIsNotEnded(uint256 duration, uint256 contribution) public {
+        duration = bound(duration, 1, DURATION - 1);
+        contribution = bound(contribution, SOFT_CAP + 1, HARD_CAP);
+
         vm.prank(user1);
-        (bool success, ) = address(sale).call{value: SOFT_CAP - 1 ether}("");
+        (bool success, ) = address(sale).call{value: contribution}("");
         assertTrue(success);
 
-        vm.warp(block.timestamp + DURATION);
-        sale.endSale();
-
-        vm.prank(owner);
-        sale.deploy{value: 1e17}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000);
-
-        // Attempt to wrap up should fail
-        vm.expectRevert();
-        sale.wrapUp();
+        vm.warp(block.timestamp + duration);
+        vm.expectRevert("Sale must end before deploying token");
+        sale.deploy{value: R0_INIT}();
     }
 
-    /// @notice Tests the wrapUp function when contributions are between soft cap and hard cap
-    /// @dev Simulates a contribution above soft cap, ends the sale, deploys the token, and calls wrapUp
-    function testWrapUpBetweenSoftCapAndHardCap() public {
-        uint256 contribution = SOFT_CAP + 1 ether;
-        
+    /// @notice Tests the deployment of the Rose contract and expect revert since sale is not ended
+    /// @dev Verifies correct token distribution after deployment
+    function testCannotDeployRoseContractWrongValue(uint256 duration, uint256 contribution, uint256 r0Init) public {
+        duration = bound(duration, DURATION + 1, DURATION * 2);
+        contribution = bound(contribution, SOFT_CAP + 1, HARD_CAP);
+        r0Init = bound(r0Init, 1, R0_INIT - 1);
+        vm.prank(user1);
+        (bool success, ) = address(sale).call{value: contribution}("");
+        assertTrue(success);
+
+        vm.warp(block.timestamp + duration);
+        sale.endSale();
+
+        vm.expectRevert("Insufficient Ether for deployment");
+        sale.deploy{value: r0Init}();
+    }
+
+    /// @notice Tests the deployment of the Rose contract
+    /// @dev Verifies correct token distribution after deployment
+    function testDeployRoseContractWhenSoftCapIsReached(uint256 contribution) public {
+        contribution = bound(contribution, SOFT_CAP + 1, HARD_CAP - 1);
         vm.prank(user1);
         (bool success, ) = address(sale).call{value: contribution}("");
         assertTrue(success);
 
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
+        Rose rose = Rose(payable(sale.deploy{value: R0_INIT}()));
 
-        vm.prank(owner);
-        Rose rose = Rose(payable(sale.deploy{value: 1}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000)));
-        uint256 liqAmount = (contribution * sale.LIQ_RATIO()) / 1000000;
-        uint256 treasuryAmount = contribution - liqAmount;
+        uint256 liqAmount = (sale.totalRaised() * sale.LIQ_RATIO()) / 1000000;
+        uint256 treasuryAmount = sale.totalRaised() - liqAmount;
 
-        sale.wrapUp();
+        // Check that the ROSE contract received the correct amount of ROSE
+        assertEq(rose.balanceOf(address(rose)), (R1_INIT));
+        // Check that the sale contract received the correct amount of ROSE
+        assertEq(rose.balanceOf(address(sale)), (FOR_SALE + CLAWBACK));
+        // Check that the treasury received the correct amount of ROSE
+        assertEq(rose.balanceOf(treasury), TREASURY_ALLOCATION);
 
-        // Check that funds were sent correctly
+        // Check that ETH were sent correctly
         assertApproxEqAbs(address(sale).balance, 0, 1);
         // Check that the ROSE contract received the correct amount of ETH
-        assertApproxEqAbs(address(rose).balance, liqAmount, 1);
+        assertApproxEqAbs(address(rose).balance, R0_INIT + liqAmount, 1);
+        // Check that the treasury received the correct amount of ETH
+        assertApproxEqAbs(address(rose.TREASURY()).balance, treasuryAmount, 1);
+
+        // No ETH left in the contract
+        assertEq(address(sale).balance, 0);
+    }
+
+    /// @notice Tests the wrapUp function when contributions are above hard cap
+    /// @dev Simulates a contribution above hard cap, ends the sale, deploys the token, and calls wrapUp
+    function testDeployRoseContractWhenHardCapIsReached(uint256 contribution) public {
+        contribution = bound(contribution, HARD_CAP + 1, HARD_CAP * 2);
+        vm.prank(user1);
+        (bool success, ) = address(sale).call{value: contribution}("");
+        assertTrue(success);
+
+        vm.warp(block.timestamp + DURATION);
+        sale.endSale();
+        Rose rose = Rose(payable(sale.deploy{value: R0_INIT}()));
+
+        uint256 liqAmount = (sale.HARD_CAP() * sale.LIQ_RATIO()) / 1000000;
+        uint256 treasuryAmount = sale.HARD_CAP() - liqAmount;
+
+        // Check that the ROSE contract received the correct amount of ROSE
+        assertEq(rose.balanceOf(address(rose)), (R1_INIT));
+        // Check that the sale contract received the correct amount of ROSE
+        assertEq(rose.balanceOf(address(sale)), (FOR_SALE + CLAWBACK));
+        // Check that the treasury received the correct amount of ROSE
+        assertEq(rose.balanceOf(treasury), TREASURY_ALLOCATION);
+
+        // Check that theere still is ETH to claim
+        assertApproxEqAbs(address(sale).balance, sale.totalRaised() - sale.HARD_CAP(), 1);
+        // Check that the ROSE contract received the correct amount of ETH
+        assertApproxEqAbs(address(rose).balance, R0_INIT + liqAmount, 1);
         // Check that the treasury received the correct amount of ETH
         assertApproxEqAbs(address(rose.TREASURY()).balance, treasuryAmount, 1);
     }
 
     /// @notice Tests the wrapUp function when contributions are above hard cap
     /// @dev Simulates a contribution above hard cap, ends the sale, deploys the token, and calls wrapUp
-    function testWrapUpAboveHardCap() public {
-        uint256 contribution = HARD_CAP + 1;
-        
+    function testDeployRoseContractWhenHardCapIsReachedAndClaim(uint256 contribution) public {
+        contribution = bound(contribution, HARD_CAP + 1, HARD_CAP * 2);
         vm.prank(user1);
         (bool success, ) = address(sale).call{value: contribution}("");
         assertTrue(success);
 
         vm.warp(block.timestamp + DURATION);
         sale.endSale();
+        sale.deploy{value: R0_INIT}();
 
-        vm.prank(owner);
-        Rose rose = Rose(payable(sale.deploy{value: 1}(1e5, 1e4, INITIAL_SUPPLY, 200000, 700000)));
-        uint256 liqAmount = (sale.HARD_CAP() * sale.LIQ_RATIO()) / 1000000;
-        uint256 treasuryAmount = contribution - liqAmount;
+        uint256 userBalanceBeforeClaim = user1.balance;
 
-        sale.wrapUp();
+        vm.prank(user1);
+        sale.claim();
 
-        // Check that funds were sent correctly
-        assertApproxEqAbs(address(sale).balance, 0, 1);
-        // Check that the ROSE contract received the correct amount of ETH
-        assertApproxEqAbs(address(rose).balance, liqAmount, 1);
-        // Check that the treasury received the correct amount of ETH
-        assertApproxEqAbs(address(rose.TREASURY()).balance, treasuryAmount, 1);
+        // User1 has been refunded their excess ETH
+        assertEq(user1.balance, userBalanceBeforeClaim + (sale.totalRaised() - sale.HARD_CAP()));
     }
-
-
-
-
-
 
     // ***** UTILS *****
     function getContribution(address addr) public view returns (uint256) {
