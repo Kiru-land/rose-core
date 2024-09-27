@@ -147,20 +147,37 @@ contract Rose {
       *      α  = skew factor
       *      var(0) = value of var at t=0
       *      var(t) = value of var at time t
-      *
-      *                     :::::::::
-      *                  :::    |    :::
-      *                 ::  R₀  |  R₁  ::
-      *                 : ..... | ..... :
-      *      x - - - -> ::      |      ::
-      *                  :::    |    ::: - - - - > y
-      *                     :::::::::
+      *  
+      *                               :::::::::::    
+      *                           ::::     :     ::::
+      *                        :::         :        :::
+      *                       ::   ( R₀ )  :  ( R₁ )  ::
+      *                       :............:...........:
+      *      x - - - - - - -> ::       .   :          :: - - - - - - -> y
+      *                        :::  °      :    °   :::
+      *                           ::::     :  . :::::
+      *                               :::::::::::                              
       *
       * @notice Deposit is the entry point for entering the Rose bonding-curve
       *         upon receiving ETH, the rose contract computes the amount out `y`
       *         using the [skew trading function](https://github.com/RedRoseMoney/Rose).
       *         The result is an asymmetric bonding curve that can optimise for price
       *         appreciation, biased by the skew factor α(t).
+      *
+      *         The skew factor α(t) is a continuous function that dictates the
+      *         evolution of the market's reserves asymmetry through time, decreasing
+      *         as the ratio R₁(t) / R₁(0) decreases.
+      *
+      *             ^
+      *             | :
+      *             | ::
+      *             | :::
+      *             |  ::::
+      *             |    :::::
+      *             |        ::::::
+      *             |              :::::::::
+      *             |                       :::::::::::::
+      *             ∘------------------------------------->
       *
       * @dev The skew factor α(t) is a continuous function of the markets reserves
       *      computed as α(t) = 1 − α(0) ⋅ (R₁(0) / R₁(t))
