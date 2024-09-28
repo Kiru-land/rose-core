@@ -2,39 +2,42 @@
 pragma solidity ^0.8.26;
 
 import "./Rose.sol";
+import { MerkleProof } from "@openzeppelin/utils/cryptography/MerkleProof.sol";
 
 contract PublicSale {
 
-    // Address where a portion of the raised funds will be sent
+    /// @notice Address where a portion of the raised funds will be sent
     address public immutable TREASURY;
-    // Address of the contract owner
-    address public immutable OWNER;
-    // Minimum amount of funds to be raised for the sale to be considered successful
+    /// @notice Minimum amount of funds to be raised for the sale to be considered successful
     uint256 public immutable SOFT_CAP;
-    // Maximum amount of funds that can be raised in the sale
+    /// @notice Maximum amount of funds that can be raised in the sale
     uint256 public immutable HARD_CAP;
-    // Timestamp when the sale will end
+    /// @notice Timestamp when the sale will end
     uint256 public immutable SALE_END;
-    // Percentage of raised funds for liquidity (in basis points)
+    /// @notice Percentage of raised funds for liquidity (in basis points)
     uint256 public immutable LIQ_RATIO;
 
     // ***** Deploy parameters *****
-    // R0_INIT is the initial reserve of ROSE R₁(0)
+    /// @notice R0_INIT is the initial reserve of ROSE R₁(0)
     uint256 public constant R0_INIT = 1 ether;
-    // ALPHA_INIT is the initial skew factor
+    /// @notice ALPHA_INIT is the initial skew factor
     uint256 public constant ALPHA = 10_000;
-    // PHI_FACTOR is the slash factor
+    /// @notice PHI_FACTOR is the slash factor
     uint256 public constant PHI = 1_000;
-    // SUPPLY is the total supply of tokens
+    /// @notice SUPPLY is the total supply of tokens
     uint256 public constant SUPPLY = 1_000_000_000 * 1e18;
-    // R1_INIT is the initial reserve of ROSE R₁(0)
+    /// @notice R1_INIT is the initial reserve of ROSE R₁(0)
     uint256 public constant R1_INIT = 200_000_000 * 1e18;   
-    // FOR_SALE is the amount of tokens to be sold in the sale
+    /// @notice FOR_SALE is the amount of tokens to be sold in the sale
     uint256 public constant FOR_SALE = 620_000_000 * 1e18;
-    // TREASURY_ALLOCATION is the amount of tokens to be allocated to the treasury
+    /// @notice TREASURY_ALLOCATION is the amount of tokens to be allocated to the treasury
     uint256 public constant TREASURY_ALLOCATION = 80_000_000 * 1e18;
-    // CLAWBACK is the amount of tokens to be allocated to communities
+    /// @notice CLAWBACK is the amount of tokens to be allocated to communities
     uint256 public constant CLAWBACK = 100_000_000 * 1e18;
+    /// @notice ERC20-claimee inclusion root
+    bytes32 public immutable MERKLE_ROOT;
+    // @notice the number of claimees
+    uint256 public immutable CLAIMEES;
 
     // Total amount of funds raised in the sale
     uint256 public totalRaised; // slot 0
@@ -50,8 +53,13 @@ contract PublicSale {
     // Mapping to track if an address has claimed their tokens
     mapping(address => bool) hasClaimed; // slot 5
 
+    /// @notice Mapping of addresses who have claimed tokens
+    mapping(address => bool) public hasClaimedClawback;
+
     // Selector for the transfer function, used in assembly
     bytes32 constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
+
+    event ClawbackClaimed(address to);
 
     /**
      * @dev Constructor to initialize the sale parameters
@@ -66,14 +74,17 @@ contract PublicSale {
         uint256 _hardCap, 
         uint256 _duration, 
         uint256 liqRatio, 
-        address _treasury
+        address _treasury,
+        bytes32 _merkleRoot, 
+        uint256 _claimees
     ) {
         SOFT_CAP = _softCap;
         HARD_CAP = _hardCap;
         SALE_END = block.timestamp + _duration;
         LIQ_RATIO = liqRatio;
         TREASURY = _treasury;
-        OWNER = msg.sender;
+        MERKLE_ROOT = _merkleRoot;
+        CLAIMEES = _claimees;
     }
 
     /**
@@ -227,7 +238,7 @@ contract PublicSale {
      */
     function deploy() external payable returns (address) {
         require(totalRaised >= SOFT_CAP, "Soft cap not met");
-        require(address(token) == address(0), "Token already deployed");
+        require(token == address(0), "Token already deployed");
         require(saleEnded, "Sale must end before deploying token");
         require(msg.value >= R0_INIT, "Insufficient Ether for deployment");
         token = address(new Rose{value: R0_INIT}(
@@ -245,5 +256,26 @@ contract PublicSale {
         return token;
     }
 
-    // TODO: airdrop mechanism using CLAWBACK
+    /// @notice Allows claiming tokens if address is part of merkle tree
+    /// @param to address of claimee
+    /// @param proof merkle proof to prove address and amount are in tree
+    function claimClawback(address to, bytes32[] calldata proof) external {
+        // Throw if address has already claimed tokens
+        require(token != address(0), "Token not deployed");
+        require(!hasClaimedClawback[to], "Already claimed");
+        // Verify merkle proof, or revert if not in tree
+        bytes32 leaf = keccak256(abi.encodePacked(to));
+        bool isValidLeaf = MerkleProof.verify(proof, MERKLE_ROOT, leaf);
+        require(isValidLeaf, "Not in merkle");
+
+        hasClaimedClawback[to] = true;
+
+        Rose rose = Rose(payable(token));
+
+        uint256 clawbackAmount = CLAWBACK / CLAIMEES;
+        require(rose.balanceOf(address(this)) >= clawbackAmount, "Insufficient clawback balance");
+        rose.transfer(to, clawbackAmount);
+
+        emit ClawbackClaimed(to);
+    }
 }

@@ -29,13 +29,17 @@ contract SaleTest is Test {
     uint256 public constant TREASURY_ALLOCATION = 80_000_000 * 1e18;
     uint256 public constant CLAWBACK = 100_000_000 * 1e18;
     address public constant TREASURY = address(0x3);
+    bytes32 merkleRoot = bytes32(0);
+    uint256 CLAIMEES = 1001;
+
 
     function setUp() public {
         user1 = address(0x1);
         user2 = address(0x2);
         treasury = address(0x3);
+        
 
-        sale = new PublicSale(SOFT_CAP, HARD_CAP, DURATION, LIQ_RATIO, treasury);
+        sale = new PublicSale(SOFT_CAP, HARD_CAP, DURATION, LIQ_RATIO, treasury, merkleRoot, CLAIMEES);
 
         vm.deal(user1, 1000 ether);
         vm.deal(user2, 1000 ether);
