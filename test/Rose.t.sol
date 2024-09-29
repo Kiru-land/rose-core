@@ -81,7 +81,7 @@ contract RoseTest is Test {
     }
 
     // Test the transferFrom function
-    function test_TransferFrom(address from, address to, uint value) public {
+    function testTransferFrom(address from, address to, uint value) public {
         // Checks if transferFrom works correctly
         // Mints tokens, approves spending, transfers tokens, and verifies balances
         vm.assume(address(this) != from);
