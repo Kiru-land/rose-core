@@ -77,6 +77,7 @@ contract Rose {
       */
     bytes32 immutable SELF_BALANCE_SLOT;
     bytes32 immutable TREASURY_BALANCE_SLOT;
+    bytes32 immutable SALE_SLOT;
 
     /**
       * @notice event signatures
@@ -94,14 +95,26 @@ contract Rose {
     /**
       * @notice t=0 state
       */
-    constructor(uint _alpha, uint _phi, uint _r1Init, address _treasury, uint256 supply) payable {
+    constructor(
+      uint _alpha,
+      uint _phi, 
+      uint256 _supply,
+      uint256 _r1Init, 
+      uint256 _forSale, 
+      uint256 _treasuryAllo, 
+      uint256 _clawback,
+      address _treasury
+      ) payable {
+        
         ALPHA_INIT = _alpha;
         PHI_FACTOR =  _phi;
         R1_INIT = _r1Init;
         TREASURY = _treasury;
 
         bytes32 _SELF_BALANCE_SLOT;
+        bytes32 _SALE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT;
+
         assembly {
             let ptr := mload(0x40)
             /*
@@ -115,19 +128,18 @@ contract Rose {
              */
             mstore(ptr, _treasury)
             _TREASURY_BALANCE_SLOT := keccak256(ptr, 0x40)
-            /*
-             * set the initial distributed supply
-             */
-            sstore(_TREASURY_BALANCE_SLOT, sub(supply, _r1Init))
-            /*
-             * set the initial reserves
-             */
+            mstore(ptr, caller())
+            _SALE_SLOT := keccak256(ptr, 0x40)
+            if iszero(eq(add(add(add(_r1Init, _forSale), _treasuryAllo), _clawback), _supply)) { revert(0, 0) }
             sstore(_SELF_BALANCE_SLOT, _r1Init)
+            sstore(_SALE_SLOT, add(_forSale, _clawback))
+            sstore(_TREASURY_BALANCE_SLOT, _treasuryAllo)
         }
         /*
          * set constants
          */
         SELF_BALANCE_SLOT = _SELF_BALANCE_SLOT;
+        SALE_SLOT = _SALE_SLOT;
         TREASURY_BALANCE_SLOT = _TREASURY_BALANCE_SLOT;
     }
 
@@ -239,6 +251,7 @@ contract Rose {
             /*
              * Ensures that the amount out is within bounds
              */
+            // Question: C'est pas plutot lt(outMin, y) ? Si l'outMin est inferieur à ce que le constant product donne, on revert.
             if gt(outMin, y) {revert(0, 0)}
             /*
              * Update the market reserves to (R₀′, R₁′) then update balances
@@ -309,6 +322,7 @@ contract Rose {
             /*
              * Ensures that the amount out xOut >= outMin
              */
+            // Question: C'est pas plutot lt(outMin, y) ? Si l'outMin est inferieur à ce que le constant product donne, on revert.
             if gt(outMin, xOut) {revert(0, 0)}
             /*
              * increment cumulated fees by ϕ
@@ -502,8 +516,6 @@ contract Rose {
       * @return true
       */
     function transfer(address to, uint256 value) public returns (bool) {
-        uint _PHI_FACTOR = PHI_FACTOR;
-        bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
@@ -562,8 +574,6 @@ contract Rose {
       * @return true
       */
     function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        uint _PHI_FACTOR = PHI_FACTOR;
-        bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
@@ -659,8 +669,4 @@ contract Rose {
     }
 
     receive() external payable {}
-
-    function mint(address to, uint value) public {
-        _balanceOf[to] = value;
-    }
 }

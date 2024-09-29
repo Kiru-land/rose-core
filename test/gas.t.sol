@@ -7,10 +7,27 @@ import {Rose} from "../src/Rose.sol";
 contract GasTest is Test {
 
     Rose public rose;
-    uint public liquidityInit = 1e24;
+    uint256 public constant R0_INIT = 1e17;
+    uint256 public constant ALPHA = 1e5;
+    uint256 public constant PHI = 1e4;
+    uint256 public constant SUPPLY = 1_000_000_000 * 1e18;
+    uint256 public constant R1_INIT = 200_000_000 * 1e18;
+    uint256 public constant FOR_SALE = 620_000_000 * 1e18;
+    uint256 public constant TREASURY_ALLOCATION = 80_000_000 * 1e18;
+    uint256 public constant CLAWBACK = 100_000_000 * 1e18;
+    address public constant TREASURY = address(0x3);
 
     function setUp() public {
-        rose = new Rose{salt: "REDROSE", value: liquidityInit}(1e5, 1e4, liquidityInit, address(this), 1e25);
+        rose = new Rose{salt: "REDROSE", value: R0_INIT}(
+            ALPHA, 
+            PHI, 
+            SUPPLY, 
+            R1_INIT, 
+            FOR_SALE, 
+            TREASURY_ALLOCATION, 
+            CLAWBACK,
+            TREASURY
+        );
     }
 
     function test_approve(address to, uint value) public {
@@ -20,7 +37,7 @@ contract GasTest is Test {
     function test_transfer(address to, uint value) public {
         vm.assume(to != address(this));
         vm.assume(to != address(rose));
-        rose.mint(address(this), value);
+        mint(address(this), value);
         rose.transfer(to, value);
     }
 
@@ -28,7 +45,7 @@ contract GasTest is Test {
         vm.assume(address(this) != from);
         vm.assume(from != to);
         vm.assume(to != address(rose));
-        rose.mint(from, value);
+        mint(from, value);
         vm.startPrank(from);
         rose.approve(address(this), value);
         vm.stopPrank();
@@ -42,12 +59,23 @@ contract GasTest is Test {
 
     function test_sell(uint value) public {
         vm.assume(value <= rose.balanceOf(address(rose)) / 50);
-        rose.mint(address(this), value);
+        mint(address(this), value);
         rose.withdraw(value, 0);
     }
 
     function test_collect() public {
         rose.collect();
+    }
+
+    function mint(address to, uint value) internal {
+        bytes32 CALLER_BALANCE_SLOT;
+        assembly {
+            let ptr := mload(0x40)
+            mstore(ptr, caller())
+            mstore(add(ptr, 0x20), 0)
+            CALLER_BALANCE_SLOT := keccak256(ptr, 0x40)
+        }
+        vm.store(address(rose), CALLER_BALANCE_SLOT, bytes32(value));
     }
 
     receive() external payable {}
