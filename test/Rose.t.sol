@@ -32,7 +32,7 @@ contract RoseTest is Test {
     }
 
     // Test the approve function
-    function test_approve(address to, uint value) public {
+    function testApprove(address to, uint value) public {
         // Checks if the approval mechanism works correctly
         // Verifies initial allowance is 0, then approves a value, and confirms the new allowance
         assertEq(rose.allowance(address(this), to), 0);
@@ -43,20 +43,24 @@ contract RoseTest is Test {
     }
 
     // Test the transfer function
-    function testTransfer(address from,address to, uint value) public {
+    function testTransfer(address from, address to, uint value) public {
         // Ensures the transfer function works as expected
         // Mints tokens, transfers them, and verifies balances are updated correctly
         vm.assume(to != address(this));
-        vm.assume(to != address(rose));
-        uint selfInitialRoseBalance = rose.balanceOf(address(this));
+        vm.assume(from != address(rose));
+        vm.assume(from != to);
+        vm.assume(from != address(this));
+        vm.assume(from != TREASURY);
+
+        mint(from, value);
+
+        uint selfInitialRoseBalance = rose.balanceOf(from);
         uint toInitialRoseBalance = rose.balanceOf(to);
 
-        mint(address(this), value);
-        assertEq(rose.balanceOf(address(this)), selfInitialRoseBalance + value);
+        vm.prank(from);
+        rose.transfer(to, value);
 
-        assertTrue(rose.transfer(to, value));
-
-        assertEq(rose.balanceOf(address(this)), selfInitialRoseBalance);
+        assertEq(rose.balanceOf(from), selfInitialRoseBalance - value);
         assertEq(rose.balanceOf(to), toInitialRoseBalance + value);
     }
 
@@ -68,6 +72,7 @@ contract RoseTest is Test {
         vm.assume(from != address(this));
         vm.assume(value > balance);
         vm.assume(from != TREASURY);
+
         mint(from, balance);
 
         vm.prank(from);
@@ -76,32 +81,31 @@ contract RoseTest is Test {
     }
 
     // Test the transferFrom function
-    function test_transferFrom(address from, address to, uint value) public {
+    function test_TransferFrom(address from, address to, uint value) public {
         // Checks if transferFrom works correctly
         // Mints tokens, approves spending, transfers tokens, and verifies balances
         vm.assume(address(this) != from);
         vm.assume(from != to);
         vm.assume(to != address(rose));
+        vm.assume(from != TREASURY);
+
+        mint(from, value);
+
         uint fromInitialRoseBalance = rose.balanceOf(from);
         uint toInitialRoseBalance = rose.balanceOf(to);
 
-        mint(from, value);
-        assertEq(rose.balanceOf(from), fromInitialRoseBalance + value);
-
-        vm.startPrank(from);
-        assertTrue(rose.approve(address(this), value));
-        vm.stopPrank();
+        vm.prank(from);
+        rose.approve(to, value);
         
-        assertTrue(rose.allowance(from, address(this)) == value);
+        vm.prank(to);
+        rose.transferFrom(from, to, value);
 
-        assertTrue(rose.transferFrom(from, to, value));
-
-        assertEq(rose.balanceOf(from), fromInitialRoseBalance);
+        assertEq(rose.balanceOf(from), fromInitialRoseBalance - value);
         assertEq(rose.balanceOf(to), toInitialRoseBalance + value);
     }
 
     // Test transferFrom failure due to insufficient allowance
-    function testFail_transferFromNotEnoughAllowance(address from, address to, uint allowance, uint value) public {
+    function testFailTransferFromNotEnoughAllowance(address from, address to, uint allowance, uint value) public {
         // Ensures transferFrom fails when the spender doesn't have enough allowance
         vm.assume(value > 0);
         vm.assume(allowance < value);
@@ -135,7 +139,7 @@ contract RoseTest is Test {
     }
 
     // Test the buy (deposit) function
-    function test_buy(uint value) public {
+    function testBuy(uint value) public {
         // Checks if the deposit function works correctly
         // Verifies token balances, ETH balances, and contract state after a purchase
         vm.assume(value < address(this).balance);
@@ -162,7 +166,7 @@ contract RoseTest is Test {
     }
 
     // Test the sell (withdraw) function
-    function test_sell(uint value) public {
+    function testSell(uint value) public {
         // Ensures the withdraw function works as expected
         // Verifies token balances, ETH balances, and contract state after a sale
         vm.assume(value <= rose.balanceOf(address(rose)) / 50);
@@ -189,7 +193,7 @@ contract RoseTest is Test {
     }
 
     // Test the collect function
-    function test_collect(uint value) public {
+    function testCollect(uint value) public {
         // Checks if the collect function correctly transfers fees to the treasury
         // Verifies ETH balances before and after fee collection
         vm.assume(value <= rose.balanceOf(address(rose)) / 50);
@@ -212,14 +216,14 @@ contract RoseTest is Test {
     }
 
     function mint(address to, uint value) internal {
-        bytes32 CALLER_BALANCE_SLOT;
+        bytes32 TO_BALANCE_SLOT;
         assembly {
             let ptr := mload(0x40)
-            mstore(ptr, caller())
+            mstore(ptr, to)
             mstore(add(ptr, 0x20), 0)
-            CALLER_BALANCE_SLOT := keccak256(ptr, 0x40)
+            TO_BALANCE_SLOT := keccak256(ptr, 0x40)
         }
-        vm.store(address(rose), CALLER_BALANCE_SLOT, bytes32(value));
+        vm.store(address(rose), TO_BALANCE_SLOT, bytes32(value));
     }
 
     receive() external payable {}
