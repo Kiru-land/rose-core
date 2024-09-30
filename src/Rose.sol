@@ -121,9 +121,7 @@ contract Rose {
       uint256 _alpha,
       uint256 _phi, 
       uint256 _r1Init, 
-      uint256 _forSale, 
-      uint256 _treasuryAllo, 
-      uint256 _clawback,
+      uint256 _supply,
       address _treasury
       ) payable {
         ALPHA_INIT = _alpha;
@@ -132,7 +130,7 @@ contract Rose {
         TREASURY = _treasury;
 
         bytes32 _SELF_BALANCE_SLOT;
-        bytes32 _SALE_SLOT;
+        bytes32 _LAUNCH_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT;
 
         assembly {
@@ -152,13 +150,12 @@ contract Rose {
              * Load balanceOf[msg.sender] slot
              */
             mstore(ptr, caller())
-            _SALE_SLOT := keccak256(ptr, 0x40)
+            _LAUNCH_SLOT := keccak256(ptr, 0x40)
             /*
              * Set the initial balances
              */
             sstore(_SELF_BALANCE_SLOT, _r1Init)
-            sstore(_SALE_SLOT, add(_forSale, _clawback))
-            sstore(_TREASURY_BALANCE_SLOT, _treasuryAllo)
+            sstore(_LAUNCH_SLOT, sub(_supply, _r1Init))
         }
         /*
          * set constants

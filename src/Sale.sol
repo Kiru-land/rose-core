@@ -24,6 +24,8 @@ contract PublicSale {
     uint256 public constant ALPHA = 10_000;
     /// @notice PHI_FACTOR is the slash factor
     uint256 public constant PHI = 1_000;
+    /// @notice SUPPLY is the total supply of ROSE
+    uint256 public constant SUPPLY = 1_000_000_000 * 1e18;
     /// @notice R1_INIT is the initial reserve of ROSE R₁(0)
     uint256 public constant R1_INIT = 200_000_000 * 1e18;   
     /// @notice FOR_SALE is the amount of tokens to be sold in the sale
@@ -245,9 +247,7 @@ contract PublicSale {
             ALPHA, 
             PHI, 
             R1_INIT, 
-            FOR_SALE, 
-            TREASURY_ALLOCATION, 
-            CLAWBACK,
+            SUPPLY,
             TREASURY
         ));
         toSell = Rose(payable(token)).balanceOf(address(this)) - CLAWBACK;

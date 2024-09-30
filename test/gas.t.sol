@@ -22,9 +22,7 @@ contract GasTest is Test {
             ALPHA, 
             PHI, 
             R1_INIT, 
-            FOR_SALE, 
-            TREASURY_ALLOCATION, 
-            CLAWBACK,
+            SUPPLY,
             TREASURY
         );
     }
