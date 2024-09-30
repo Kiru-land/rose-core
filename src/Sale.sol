@@ -24,8 +24,6 @@ contract PublicSale {
     uint256 public constant ALPHA = 10_000;
     /// @notice PHI_FACTOR is the slash factor
     uint256 public constant PHI = 1_000;
-    /// @notice SUPPLY is the total supply of tokens
-    uint256 public constant SUPPLY = 1_000_000_000 * 1e18;
     /// @notice R1_INIT is the initial reserve of ROSE R₁(0)
     uint256 public constant R1_INIT = 200_000_000 * 1e18;   
     /// @notice FOR_SALE is the amount of tokens to be sold in the sale
@@ -56,7 +54,9 @@ contract PublicSale {
     /// @notice Mapping of addresses who have claimed tokens
     mapping(address => bool) public hasClaimedClawback;
 
-    // Selector for the transfer function, used in assembly
+    // selector for the balanceOf function
+    bytes32 constant BALANCE_OF_SELECTOR = bytes4(keccak256("balanceOf(address)"));
+    // Selector for the transfer function
     bytes32 constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
 
     event ClawbackClaimed(address to);
@@ -244,7 +244,6 @@ contract PublicSale {
         token = address(new Rose{value: R0_INIT}(
             ALPHA, 
             PHI, 
-            SUPPLY, 
             R1_INIT, 
             FOR_SALE, 
             TREASURY_ALLOCATION, 
@@ -258,13 +257,13 @@ contract PublicSale {
 
     /// @notice Allows claiming tokens if address is part of merkle tree
     /// @param to address of claimee
-    /// @param proof merkle proof to prove address and amount are in tree
+    /// @param proof merkle proof to prove address is in the tree
     function claimClawback(address to, bytes32[] calldata proof) external {
         // Throw if address has already claimed tokens
         require(token != address(0), "Token not deployed");
         require(!hasClaimedClawback[to], "Already claimed");
-        // Verify merkle proof, or revert if not in tree
-        bytes32 leaf = keccak256(abi.encodePacked(to));
+        
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(to))));
         bool isValidLeaf = MerkleProof.verify(proof, MERKLE_ROOT, leaf);
         require(isValidLeaf, "Not in merkle");
 
@@ -272,10 +271,13 @@ contract PublicSale {
 
         Rose rose = Rose(payable(token));
 
-        uint256 clawbackAmount = CLAWBACK / CLAIMEES;
-        require(rose.balanceOf(address(this)) >= clawbackAmount, "Insufficient clawback balance");
-        rose.transfer(to, clawbackAmount);
-
+        uint256 baseAmount = (CLAWBACK * 1e6) / CLAIMEES / 1e6;
+        (bool balanceSuccess, bytes memory balanceData) = address(rose).call(abi.encodeWithSignature("balanceOf(address)", address(this)));
+        require(balanceSuccess && balanceData.length == 32, "Balance call failed");
+        uint256 clawbackBalance = abi.decode(balanceData, (uint256));
+        require(clawbackBalance >= baseAmount, "Insufficient clawback balance");
+        (bool transferSuccess, bytes memory transferData) = address(rose).call(abi.encodeWithSignature("transfer(address,uint256)", to, baseAmount));
+        require(transferSuccess && transferData.length == 0, "Transfer failed");
         emit ClawbackClaimed(to);
     }
 }

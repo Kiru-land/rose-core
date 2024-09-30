@@ -47,6 +47,27 @@ contract Rose {
     //////////////////////////////////////////////////////////////
 
     /**
+      *             , .-.-,_,
+      *             )`-.>'` (
+      *            /     `\  |
+      *            |       | |
+      *             \     / /
+      *             `=(\ /.=`
+      *              `-;`.-'
+      *                `)|     ,
+      *                 ||  .-'|
+      *               ,_||  \_,/
+      *         ,      \|| .'
+      *         |\|\  , ||/
+      *        ,_\` |/| |Y_,
+      *         '-.'-._\||/
+      *            >_.-`Y|
+      *            `|   ||
+      *                 ||  
+      *                 ||
+      *                 ||
+      *                 ||
+      *
       * @notice The Rose blossoms.
       */
     string public constant name = "Rose";
@@ -57,27 +78,26 @@ contract Rose {
 
     mapping(address => mapping(address => uint256)) private _allowance; // slot 1
 
-    uint cumulatedFees; // slot 2
+    uint256 cumulatedFees; // slot 2
 
     /**
       * @notice The initial skew factor α(0) scaled by 1e6
       */
-    uint immutable ALPHA_INIT;
+    uint256 immutable ALPHA_INIT;
     /**
       * @notice The slash factor ϕ scaled by 1e6
       */
-    uint immutable PHI_FACTOR;
+    uint256 immutable PHI_FACTOR;
     /**
       * @notice The initial reserve of ROSE R₁(0)
       */
-    uint immutable R1_INIT;
+    uint256 immutable R1_INIT;
 
     /**
       * @notice constant storage slots
       */
     bytes32 immutable SELF_BALANCE_SLOT;
     bytes32 immutable TREASURY_BALANCE_SLOT;
-    bytes32 immutable SALE_SLOT;
 
     /**
       * @notice event signatures
@@ -89,23 +109,23 @@ contract Rose {
 
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
-    event Buy(address indexed buyer, uint256 amount0In, uint256 amount1Out);
-    event Sell(address indexed seller, uint256 amount1In, uint256 amount0Out);
+
+    //////////////////////////////////////////////////////////////
+    //////////////////////// Constructor /////////////////////////
+    //////////////////////////////////////////////////////////////
 
     /**
       * @notice t=0 state
       */
     constructor(
-      uint _alpha,
-      uint _phi, 
-      uint256 _supply,
+      uint256 _alpha,
+      uint256 _phi, 
       uint256 _r1Init, 
       uint256 _forSale, 
       uint256 _treasuryAllo, 
       uint256 _clawback,
       address _treasury
       ) payable {
-        
         ALPHA_INIT = _alpha;
         PHI_FACTOR =  _phi;
         R1_INIT = _r1Init;
@@ -128,9 +148,14 @@ contract Rose {
              */
             mstore(ptr, _treasury)
             _TREASURY_BALANCE_SLOT := keccak256(ptr, 0x40)
+            /*
+             * Load balanceOf[msg.sender] slot
+             */
             mstore(ptr, caller())
             _SALE_SLOT := keccak256(ptr, 0x40)
-            if iszero(eq(add(add(add(_r1Init, _forSale), _treasuryAllo), _clawback), _supply)) { revert(0, 0) }
+            /*
+             * Set the initial balances
+             */
             sstore(_SELF_BALANCE_SLOT, _r1Init)
             sstore(_SALE_SLOT, add(_forSale, _clawback))
             sstore(_TREASURY_BALANCE_SLOT, _treasuryAllo)
@@ -139,7 +164,6 @@ contract Rose {
          * set constants
          */
         SELF_BALANCE_SLOT = _SELF_BALANCE_SLOT;
-        SALE_SLOT = _SALE_SLOT;
         TREASURY_BALANCE_SLOT = _TREASURY_BALANCE_SLOT;
     }
 
@@ -163,7 +187,7 @@ contract Rose {
       *                               :::::::::::    
       *                           ::::     :     ::::
       *                        :::         :        :::
-      *                       ::   ( R₀ )  :  ( R₁ )  ::
+      *                       ::     R₀    :    R₁    ::
       *                       :............:...........:
       *      x - - - - - - -> ::       .   :          :: - - - - - - -> y
       *                        :::  °      :    °   :::
@@ -208,10 +232,15 @@ contract Rose {
       *         spot = R₁ / R₀
       *         R₀′ = R₀ + x
       *         R₁′ = (R₀ * R₁) / R₀′
+      *
+      * @param outMin The minimum amount of ROSE to receive.
+      *               This parameter introduces slippage bounds to the trade.
+      *
+      * @return The amount of ROSE received.
       */
-    function deposit(uint outMin) external payable returns (uint) {
-        uint _ALPHA_INIT = ALPHA_INIT;
-        uint _R1_INIT = R1_INIT;
+    function deposit(uint256 outMin) external payable returns (uint256) {
+        uint256 _ALPHA_INIT = ALPHA_INIT;
+        uint256 _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT = TREASURY_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
@@ -239,19 +268,51 @@ contract Rose {
             let alpha := sub(1000000, inverseAlpha)
             /*
              * Compute the new reserves (R₀′, R₁′) and the amount out y
+             *
+             * α-reserves are reserves cut by the skew factor α(t)
              */
             let alphaR0 := div(mul(alpha, r0), 1000000)
             let alphaR1 := div(mul(alpha, r1), 1000000)
+            /*
+             * The new α-reserve 0, increased by x
+             *
+             * αR₀′ = αR₀ + x
+             */
             let alphaR0Prime := add(alphaR0, x)
+            /*
+             * The new α-reserve 1, computed as the constant product of the α-reserves
+             *
+             * αR₁′ = (αR₀ * αR₁) / αR₀′
+             */
             let alphaR1Prime := div(mul(alphaR0, alphaR1), alphaR0Prime)
+            /*
+             * The amount out y, computed as the difference between the initial α-reserve 1 and the new α-reserve 1
+             *
+             * y = αR₁ - αR₁′
+             */
             let y := sub(alphaR1, alphaR1Prime)
+            /*
+             * The new actual reserve 0, increased by x
+             *
+             * R₀′ = R₀ + x
+             */
             let r0Prime := add(r0, x)
+            /*
+             * The new actual reserve 1, computed as new reserve 0 * α-ratio
+             * where α-ratio: αR₁′ / αR₀′
+             *
+             * R₁′ = (αR₁′ / αR₀′) * R₀′
+             */
             let r1Prime := div(mul(div(mul(alphaR1Prime, 1000000), alphaR0Prime), r0Prime), 1000000)
+            /*
+             * Delta between constant product of actual reserves and new reserve 1
+             *
+             * ΔR₁ = R₀ * R₁ / R₀′ - R₁′
+             */
             let deltaToken1 := sub(div(mul(r0, r1), r0Prime), r1Prime)
             /*
-             * Ensures that the amount out is within bounds
+             * Ensures that the amount out is within slippage bounds
              */
-            // Question: C'est pas plutot lt(outMin, y) ? Si l'outMin est inferieur à ce que le constant product donne, on revert.
             if gt(outMin, y) {revert(0, 0)}
             /*
              * Update the market reserves to (R₀′, R₁′) then update balances
@@ -276,8 +337,23 @@ contract Rose {
         }
     }
 
-    function withdraw(uint value, uint outMin) external payable returns (uint) {
-        uint _PHI_FACTOR = PHI_FACTOR;
+    //////////////////////////////////////////////////////////////
+    /////////////////////////// Sell /////////////////////////////
+    //////////////////////////////////////////////////////////////
+
+    /**
+      * @notice Withdraws ETH from Jita's bonding curve
+      *
+      * @dev This contracts operate at low-level and does not require sending funds 
+      *      before withdrawing, it instead only requires the caller to have enough
+      *      balance, then balance slots are updated accordingly.
+      *
+      * @param value The amount of ETH to withdraw.
+      * @param outMin The minimum amount of ETH to receive.
+      * @return The amount of ETH received.
+      */
+    function withdraw(uint256 value, uint256 outMin) external payable returns (uint256) {
+        uint256 _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
         assembly {
@@ -308,21 +384,42 @@ contract Rose {
             if gt(y, div(r1,20)) { revert(0, 0) }
             /*
              * the rose sent is sold for ETH using the CP formula:
+             *
              *     y = (R₁ - K / (R₀ + x)) * ϕfactor
              *
-             *  R₁′ = R₁ + y
-             *  R₀′ = K / R₁′
-             *  x = R₁ - R₁′
-             *  ϕ = x * ϕfactor
+             * where:
+             *
+             *    y: Rose amount in
+             *    x: Eth amount out
+             *    K: R₀ * R₁
+             *    ϕfactor: withdrawal penalty factor
+             *
+             * Compute the new reserve 1 by adding the amount out y
+             * 
+             * R₁′ = R₁ + y
              */
             let r1prime := add(r1, y)
+            /*
+             * Compute the raw amount out x
+             *
+             * x = R₀ - (R₀ * R₁) / R₁′
+             */
             let x := sub(r0, div(mul(r0, r1), r1prime))
+            /*
+             * Compute the withdrawal fee ϕ
+             *
+             * ϕ = x * ϕfactor
+             */
             let phi := div(mul(x, _PHI_FACTOR), 1000000)
+            /*
+             * Compute the amount out xOut
+             *
+             * xOut = x - ϕ
+             */
             let xOut := sub(x, phi)
             /*
-             * Ensures that the amount out xOut >= outMin
+             * Ensures that the amount out is within slippage bounds
              */
-            // Question: C'est pas plutot lt(outMin, y) ? Si l'outMin est inferieur à ce que le constant product donne, on revert.
             if gt(outMin, xOut) {revert(0, 0)}
             /*
              * increment cumulated fees by ϕ
@@ -355,9 +452,20 @@ contract Rose {
         }
     }
 
-    function quoteDeposit(uint value) public view returns (uint) {
-        uint _ALPHA_INIT = ALPHA_INIT;
-        uint _R1_INIT = R1_INIT;
+    //////////////////////////////////////////////////////////////
+    ////////////////////////// Quote /////////////////////////////
+    //////////////////////////////////////////////////////////////
+
+    /**
+      * @notice Computes the amount of ROSE received for a given amount of ETH deposited.
+      *
+      * @param value The amount of ETH to deposit.
+      *
+      * @return The amount of ROSE received.
+      */
+    function quoteDeposit(uint256 value) public view returns (uint256) {
+        uint256 _ALPHA_INIT = ALPHA_INIT;
+        uint256 _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         assembly {
             let ptr := mload(0x40)
@@ -376,8 +484,15 @@ contract Rose {
         }
     }
 
-    function quoteWithdraw(uint value) public view returns (uint) {
-        uint _PHI_FACTOR = PHI_FACTOR;
+    /**
+      * @notice Computes the amount of ETH received for a given amount of ROSE withdrawn.
+      *
+      * @param value The amount of ROSE to withdraw.
+      *
+      * @return The amount of ETH received.
+      */
+    function quoteWithdraw(uint256 value) public view returns (uint256) {
+        uint256 _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         assembly {
             let ptr := mload(0x40)
@@ -392,19 +507,9 @@ contract Rose {
         }
     }
 
-    /**
-      * @notice Collects the cumulated withdraw fees and transfers them to the treasury.
-      */
-    function collect() external {
-        address _TREASURY = TREASURY;
-        assembly {
-            let _cumulatedFees := sload(2)
-            // set cumulated fees to 0
-            sstore(2, 0)
-            // transfer cumulated fees to treasury
-            if iszero(call(gas(), _TREASURY, _cumulatedFees, 0, 0, 0, 0)) { revert (0, 0)}
-        }
-    }
+    //////////////////////////////////////////////////////////////
+    /////////////////////////// View /////////////////////////////
+    //////////////////////////////////////////////////////////////
 
     /**
       * @notice Returns the market's reserves and the skew factor α(t).
@@ -415,9 +520,9 @@ contract Rose {
       *
       * @return alpha The skew factor α(t).
       */
-    function getState() public view returns (uint r0, uint r1, uint alpha) {
-        uint _ALPHA_INIT = ALPHA_INIT;
-        uint _R1_INIT = R1_INIT;
+    function getState() public view returns (uint256 r0, uint256 r1, uint256 alpha) {
+        uint256 _ALPHA_INIT = ALPHA_INIT;
+        uint256 _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         assembly {
             r0 := sub(selfbalance(), sload(2))
@@ -433,34 +538,13 @@ contract Rose {
     //////////////////////////////////////////////////////////////
 
     /**
-      *             , .-.-,_,
-      *             )`-.>'` (
-      *            /     `\  |
-      *            |       | |
-      *             \     / /
-      *             `=(\ /.=`
-      *              `-;`.-'
-      *                `)|     ,
-      *                 ||  .-'|
-      *               ,_||  \_,/
-      *         ,      \|| .'
-      *         |\|\  , ||/
-      *        ,_\` |/| |Y_,
-      *         '-.'-._\||/
-      *            >_.-`Y|
-      *            `|   ||
-      *                 ||  
-      *                 ||
-      *                 ||
-      *                 ||
-      *
       * @notice Returns the balance of the specified address.
       *
       * @param to The address to get the balance of.
       *
       * @return _balance The balance of the specified address.
       */
-     function balanceOf(address to) public view returns (uint _balance) {
+     function balanceOf(address to) public view returns (uint256 _balance) {
         assembly {
             let ptr := mload(0x40)
             /*
@@ -485,7 +569,7 @@ contract Rose {
       *
       * @return __allowance The amount of tokens that the spender is allowed to transfer from the owner.
       */
-     function allowance(address owner, address spender) public view returns (uint __allowance) {
+     function allowance(address owner, address spender) public view returns (uint256 __allowance) {
         assembly {
             let ptr := mload(0x40)
             /*
@@ -668,5 +752,18 @@ contract Rose {
         }
     }
 
+    /**
+      * @notice Collects the cumulated withdraw fees and transfers them to the treasury.
+      */
+    function collect() external {
+        address _TREASURY = TREASURY;
+        assembly {
+            let _cumulatedFees := sload(2)
+            // set cumulated fees to 0
+            sstore(2, 0)
+            // transfer cumulated fees to treasury
+            if iszero(call(gas(), _TREASURY, _cumulatedFees, 0, 0, 0, 0)) { revert (0, 0)}
+        }
+    }
     receive() external payable {}
 }

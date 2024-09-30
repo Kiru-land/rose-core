@@ -12,7 +12,6 @@ contract RoseScript is Script {
     uint256 public constant R0_INIT = 1e17;
     uint256 public constant ALPHA = 1e5;
     uint256 public constant PHI = 1e4;
-    uint256 public constant SUPPLY = 1_000_000_000 * 1e18;
     uint256 public constant R1_INIT = 200_000_000 * 1e18;
     uint256 public constant FOR_SALE = 620_000_000 * 1e18;
     uint256 public constant TREASURY_ALLOCATION = 80_000_000 * 1e18;
@@ -24,7 +23,6 @@ contract RoseScript is Script {
         rose = new Rose{salt: "REDROSE", value: R0_INIT}(
             ALPHA, 
             PHI, 
-            SUPPLY, 
             R1_INIT, 
             FOR_SALE, 
             TREASURY_ALLOCATION, 

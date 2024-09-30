@@ -21,7 +21,6 @@ contract GasTest is Test {
         rose = new Rose{salt: "REDROSE", value: R0_INIT}(
             ALPHA, 
             PHI, 
-            SUPPLY, 
             R1_INIT, 
             FOR_SALE, 
             TREASURY_ALLOCATION, 
@@ -68,14 +67,14 @@ contract GasTest is Test {
     }
 
     function mint(address to, uint value) internal {
-        bytes32 CALLER_BALANCE_SLOT;
+        bytes32 TO_BALANCE_SLOT;
         assembly {
             let ptr := mload(0x40)
-            mstore(ptr, caller())
+            mstore(ptr, to)
             mstore(add(ptr, 0x20), 0)
-            CALLER_BALANCE_SLOT := keccak256(ptr, 0x40)
+            TO_BALANCE_SLOT := keccak256(ptr, 0x40)
         }
-        vm.store(address(rose), CALLER_BALANCE_SLOT, bytes32(value));
+        vm.store(address(rose), TO_BALANCE_SLOT, bytes32(value));
     }
 
     receive() external payable {}
