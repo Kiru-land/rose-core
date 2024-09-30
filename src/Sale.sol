@@ -12,8 +12,6 @@ contract PublicSale {
     uint256 public immutable SOFT_CAP;
     /// @notice Maximum amount of funds that can be raised in the sale
     uint256 public immutable HARD_CAP;
-    /// @notice Timestamp when the sale will end
-    uint256 public immutable SALE_END;
     /// @notice Percentage of raised funds for liquidity (in basis points)
     uint256 public immutable LIQ_RATIO;
 
@@ -29,15 +27,12 @@ contract PublicSale {
     /// @notice R1_INIT is the initial reserve of ROSE R₁(0)
     uint256 public constant R1_INIT = 200_000_000 * 1e18;   
     /// @notice FOR_SALE is the amount of tokens to be sold in the sale
-    uint256 public constant FOR_SALE = 620_000_000 * 1e18;
+    uint256 public constant SALE_ALLOCATION = 670_000_000 * 1e18;
     /// @notice TREASURY_ALLOCATION is the amount of tokens to be allocated to the treasury
     uint256 public constant TREASURY_ALLOCATION = 80_000_000 * 1e18;
     /// @notice CLAWBACK is the amount of tokens to be allocated to communities
-    uint256 public constant CLAWBACK = 100_000_000 * 1e18;
-    /// @notice ERC20-claimee inclusion root
-    bytes32 public immutable MERKLE_ROOT;
+    uint256 public constant CLAWBACK = 50_000_000 * 1e18;
     // @notice the number of claimees
-    uint256 public immutable CLAIMEES;
 
     // Total amount of funds raised in the sale
     uint256 public totalRaised; // slot 0
@@ -45,8 +40,8 @@ contract PublicSale {
     bool public saleEnded; // slot 1
     // Address of the token contract
     address public token; // slot 2
-    // Amount of tokens to be sold in the sale
-    uint256 public toSell; // slot 3
+    /// @notice Timestamp of sale end
+    uint256 public saleEnd;
 
     // Mapping to track individual contributions
     mapping(address => uint256) contributions; // slot 4
@@ -55,6 +50,12 @@ contract PublicSale {
 
     /// @notice Mapping of addresses who have claimed tokens
     mapping(address => bool) public hasClaimedClawback;
+
+    address public immutable OWNER;
+    /// @notice ERC20-claimee inclusion root
+    bytes32 public merkleRoot;
+    /// @notice base allocation for clawback
+    uint256 public baseAllocation;
 
     // selector for the balanceOf function
     bytes32 constant BALANCE_OF_SELECTOR = bytes4(keccak256("balanceOf(address)"));
@@ -67,26 +68,22 @@ contract PublicSale {
      * @dev Constructor to initialize the sale parameters
      * @param _softCap Minimum amount to raise
      * @param _hardCap Maximum amount to raise
-     * @param _duration Duration of the sale in seconds
+     * @param _saleEnd Timestamp of sale end
      * @param liqRatio Percentage of raised funds for liquidity (in basis points)
      * @param _treasury Address of the treasury
      */
     constructor(
         uint256 _softCap, 
         uint256 _hardCap, 
-        uint256 _duration, 
+        uint256 _saleEnd, 
         uint256 liqRatio, 
-        address _treasury,
-        bytes32 _merkleRoot, 
-        uint256 _claimees
+        address _treasury
     ) {
         SOFT_CAP = _softCap;
         HARD_CAP = _hardCap;
-        SALE_END = block.timestamp + _duration;
         LIQ_RATIO = liqRatio;
         TREASURY = _treasury;
-        MERKLE_ROOT = _merkleRoot;
-        CLAIMEES = _claimees;
+        saleEnd = _saleEnd;
     }
 
     /**
@@ -94,16 +91,18 @@ contract PublicSale {
      * Allows users to send ETH directly to the contract
      */
     receive() external payable {
-        uint _SALE_END = SALE_END;
+        uint _saleEnd = saleEnd;
         assembly {
-            if lt(_SALE_END, timestamp()) { revert(0, 0) }
-            if lt(callvalue(), 1) { revert(0, 0) }
-
+            if lt(_saleEnd, timestamp()) { revert(0, 0) }
+            if lt(callvalue(), 1000000) { revert(0, 0) }
+            // load contributions[msg.sender] slot
             let ptr := mload(0x40)
             mstore(ptr, caller())
             mstore(add(ptr, 0x20), 4)
             let contribSlot := keccak256(ptr, 0x40)
+            // increment totalRaised
             sstore(totalRaised.slot, add(sload(totalRaised.slot), callvalue()))
+            // increment contributions[msg.sender]
             sstore(contribSlot, add(sload(contribSlot), callvalue()))
         }
     }
@@ -113,10 +112,11 @@ contract PublicSale {
      * Can only be called after the sale end time
      */
     function endSale() external {
-        uint _SALE_END = SALE_END;
+        uint _saleEnd = saleEnd;
         assembly {
-            if lt(timestamp(), _SALE_END) { revert(0, 0) }
+            if lt(timestamp(), _saleEnd) { revert(0, 0) }
             if sload(saleEnded.slot) { revert(0, 0) }
+            // set saleEnded to true
             sstore(saleEnded.slot, 1)
         }
     }
@@ -128,7 +128,7 @@ contract PublicSale {
     function claim() external {
         uint _SOFT_CAP = SOFT_CAP;
         uint _HARD_CAP = HARD_CAP;
-        uint _TO_SELL = toSell;
+        uint _TO_SELL = SALE_ALLOCATION;
         address _TOKEN = token;
         bytes32 _TRANSFER_SELECTOR = TRANSFER_SELECTOR;
         assembly {
@@ -145,6 +145,7 @@ contract PublicSale {
             mstore(add(ptr, 0x20), 5)
             let hasClaimedSlot := keccak256(ptr, 0x40)
             if sload(hasClaimedSlot) { revert(0, 0) }
+            // set hasClaimed[msg.sender] to true
             sstore(hasClaimedSlot, 1)
             let totalRaisedValue := sload(totalRaised.slot)
             /*
@@ -187,13 +188,14 @@ contract PublicSale {
     }
 
     /**
-     * @dev Internalunction to finalize the sale and distribute funds
+     * @dev Internal function to finalize the sale and distribute funds
      * Sends funds to the token contract for liquidity and to the treasury
      */
     function _wrapUp() internal {
         uint256 _HARD_CAP = HARD_CAP;
         uint256 _LIQ_RATIO = LIQ_RATIO;
         uint256 _SOFT_CAP = SOFT_CAP;
+        address _TREASURY = TREASURY;
         address _TOKEN = token;
         
         assembly {
@@ -221,17 +223,11 @@ contract PublicSale {
             }
 
             // Send funds to TOKEN contract
-            let success1 := call(gas(), _TOKEN, liqAmount, 0, 0, 0, 0)
-            if iszero(success1) { revert(0, 0) }
-            // Get TREASURY address from TOKEN contract
-            let ptr := mload(0x40)
-            mstore(ptr, shl(224, 0x2d2c5565)) // TREASURY() selector
-            let success2 := staticcall(gas(), _TOKEN, ptr, 4, ptr, 0x20)
-            if iszero(success2) { revert(0, 0) }
-            let treasuryAddress := mload(ptr)
+            let transferLiquiditySuccess := call(gas(), _TOKEN, liqAmount, 0, 0, 0, 0)
+            if iszero(transferLiquiditySuccess) { revert(0, 0) }
             // Send remaining funds to TREASURY
-            let success3 := call(gas(), treasuryAddress, treasuryAmount, 0, 0, 0, 0)
-            if iszero(success3) { revert(0, 0) }
+            let transferTreasurySuccess := call(gas(), _TREASURY, treasuryAmount, 0, 0, 0, 0)
+            if iszero(transferTreasurySuccess) { revert(0, 0) }
         }
     }
 
@@ -250,7 +246,6 @@ contract PublicSale {
             SUPPLY,
             TREASURY
         ));
-        toSell = Rose(payable(token)).balanceOf(address(this)) - CLAWBACK;
         _wrapUp();
         return token;
     }
@@ -259,25 +254,49 @@ contract PublicSale {
     /// @param to address of claimee
     /// @param proof merkle proof to prove address is in the tree
     function claimClawback(address to, bytes32[] calldata proof) external {
+        uint _saleEnd = saleEnd;
+        assembly {
+            if lt(timestamp(), _saleEnd) { revert(0, 0) }
+        }
+        require(merkleRoot != bytes32(0), "Merkle root not set");
         // Throw if address has already claimed tokens
         require(token != address(0), "Token not deployed");
         require(!hasClaimedClawback[to], "Already claimed");
         
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(to))));
-        bool isValidLeaf = MerkleProof.verify(proof, MERKLE_ROOT, leaf);
+        bool isValidLeaf = MerkleProof.verify(proof, merkleRoot, leaf);
         require(isValidLeaf, "Not in merkle");
 
         hasClaimedClawback[to] = true;
 
         Rose rose = Rose(payable(token));
 
-        uint256 baseAmount = (CLAWBACK * 1e6) / CLAIMEES / 1e6;
         (bool balanceSuccess, bytes memory balanceData) = address(rose).call(abi.encodeWithSignature("balanceOf(address)", address(this)));
         require(balanceSuccess && balanceData.length == 32, "Balance call failed");
         uint256 clawbackBalance = abi.decode(balanceData, (uint256));
-        require(clawbackBalance >= baseAmount, "Insufficient clawback balance");
-        (bool transferSuccess, bytes memory transferData) = address(rose).call(abi.encodeWithSignature("transfer(address,uint256)", to, baseAmount));
+        require(clawbackBalance >= baseAllocation, "Insufficient clawback balance");
+        (bool transferSuccess, bytes memory transferData) = address(rose).call(abi.encodeWithSignature("transfer(address,uint256)", to, baseAllocation));
         require(transferSuccess && transferData.length == 0, "Transfer failed");
         emit ClawbackClaimed(to);
+    }
+
+    function setMerkleRootAndBaseAllocation(bytes32 _merkleRoot, uint256 _baseAllocation) external {
+        require(msg.sender == OWNER, "Only owner can set merkle root");
+        merkleRoot = _merkleRoot;
+        baseAllocation = _baseAllocation;
+    }
+
+    function setSaleEnd(uint256 _saleEnd, bool _saleEnded) external {
+        require(msg.sender == OWNER, "Only owner can set sale end");
+        saleEnd = _saleEnd;
+        saleEnded = _saleEnded;
+    }
+
+    function transferUnusedAllocation() external {
+        require(saleEnd + 30 days < block.timestamp, "Sale must end before transferring unused allocation");
+        require(msg.sender == OWNER, "Only owner can transfer unused allocation");
+        require(token != address(0), "Token not deployed");
+        Rose rose = Rose(payable(token));
+        rose.transfer(TREASURY, rose.balanceOf(address(this)));
     }
 }
