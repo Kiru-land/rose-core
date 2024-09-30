@@ -17,10 +17,10 @@ pragma solidity ^0.8.26;
   *
   * @author 5A6E55E
   *
-  * @notice Rose is an efficient contract for the Rose token and it's canonical
-  *         market Jita.
-  *         Unification under a single contract allows for precise control over
-  *         the market-making strategy, fully automated.
+  * @notice Rose is an efficient contract for the Rose tokenized bonding curve.
+  *         Unification of the asset and it's canonical market under a single
+  *         contract allows for precise control over the market-making strategy,
+  *         fully automated.
   *
   *            ::::                                       °      ::::
   *         :::        .           ------------             .        :::
@@ -30,15 +30,15 @@ pragma solidity ^0.8.26;
   *         :::         ◓ - - - - |   .     ...|                     :::
   *            ::::                ------------                  ::::
   *
-  * @dev Jita market has unlimited power and can treat buys and sells in an
-  *      asymmetric way, exploiting this assymetry to optimise for price
-  *      volatility on buys and deep liquidity on sells, and binding price
-  *      appreciation to uniform volume.
+  * @dev Jita market, the bonding-curve of the Rose token, executes buys and
+  *      sells with different dynamics, exploiting this assymetry to optimise
+  *      for price volatility on buys and deep liquidity on sells.
+  *      Driven by the skew factor α(t), Jita binds price appreciation to
+  *      uniform volume.
   *      This contract leverages assembly to bypass solidity's overhead and
   *      enable efficient market-making.
   *
   * todo: fix Transfer events emitting wrong amount
-  * todo: add collect(address token) external restricted
   */
 contract Rose {
 
@@ -231,7 +231,7 @@ contract Rose {
       *         R₁′ = (R₀ * R₁) / R₀′
       *
       * @param outMin The minimum amount of ROSE to receive.
-      *               This parameter introduces slippage bounds to the trade.
+      *               This parameter introduces slippage bounds for the trade.
       *
       * @return The amount of ROSE received.
       */
@@ -342,11 +342,14 @@ contract Rose {
       * @notice Withdraws ETH from Jita's bonding curve
       *
       * @dev This contracts operate at low-level and does not require sending funds 
-      *      before withdrawing, it instead only requires the caller to have enough
-      *      balance, then balance slots are updated accordingly.
+      *      before withdrawing, it instead requires the caller to have enough
+      *      balance, then balance slots gets updated accordingly.
       *
       * @param value The amount of ETH to withdraw.
+      *
       * @param outMin The minimum amount of ETH to receive.
+      *               This parameter introduces slippage bounds for the trade.
+      *
       * @return The amount of ETH received.
       */
     function withdraw(uint256 value, uint256 outMin) external payable returns (uint256) {
@@ -454,7 +457,8 @@ contract Rose {
     //////////////////////////////////////////////////////////////
 
     /**
-      * @notice Computes the amount of ROSE received for a given amount of ETH deposited.
+      * @notice Computes the amount of ROSE received for a given amount of ETH deposited
+      *         given the current market reserves.
       *
       * @param value The amount of ETH to deposit.
       *
@@ -482,7 +486,8 @@ contract Rose {
     }
 
     /**
-      * @notice Computes the amount of ETH received for a given amount of ROSE withdrawn.
+      * @notice Computes the amount of ETH received for a given amount of ROSE withdrawn
+      *         given the current market reserves.
       *
       * @param value The amount of ROSE to withdraw.
       *
