@@ -39,7 +39,7 @@ contract SaleTest is Test {
         treasury = address(0x3);
         
 
-        sale = new PublicSale(SOFT_CAP, HARD_CAP, DURATION, LIQ_RATIO, treasury);
+        sale = new PublicSale(SOFT_CAP, HARD_CAP, block.timestamp + DURATION, LIQ_RATIO, treasury);
 
         vm.deal(user1, 1000 ether);
         vm.deal(user2, 1000 ether);
