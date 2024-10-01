@@ -25,9 +25,9 @@ contract SaleTest is Test {
     uint256 public constant PHI = 1e4;
     uint256 public constant SUPPLY = 1_000_000_000 * 1e18;
     uint256 public constant R1_INIT = 200_000_000 * 1e18;
-    uint256 public constant FOR_SALE = 620_000_000 * 1e18;
+    uint256 public constant FOR_SALE = 670_000_000 * 1e18;
     uint256 public constant TREASURY_ALLOCATION = 80_000_000 * 1e18;
-    uint256 public constant CLAWBACK = 100_000_000 * 1e18;
+    uint256 public constant CLAWBACK = 50_000_000 * 1e18;
     address public constant TREASURY = address(0x3);
     bytes32 merkleRoot = bytes32(0);
     uint256 CLAIMEES = 1001;

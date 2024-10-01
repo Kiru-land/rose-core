@@ -30,38 +30,35 @@ contract PublicSale {
     uint256 public constant SALE_ALLOCATION = 670_000_000 * 1e18;
     /// @notice TREASURY_ALLOCATION is the amount of tokens to be allocated to the treasury
     uint256 public constant TREASURY_ALLOCATION = 80_000_000 * 1e18;
-    /// @notice CLAWBACK is the amount of tokens to be allocated to communities
-    uint256 public constant CLAWBACK = 50_000_000 * 1e18;
-    // @notice the number of claimees
 
-    // Total amount of funds raised in the sale
+    /// @notice Total amount of funds raised in the sale
     uint256 public totalRaised; // slot 0
-    // Flag to indicate if the sale has ended
+    /// @notice Flag to indicate if the sale has ended
     bool public saleEnded; // slot 1
-    // Address of the token contract
+    /// @notice Address of the token contract
     address public token; // slot 2
-    /// @notice Timestamp of sale end
-    uint256 public saleEnd;
+    /// @notice Amount of tokens to be sold in the sale
+    uint256 public saleEnd; // slot 3
 
-    // Mapping to track individual contributions
+    /// @notice Mapping to track individual contributions
     mapping(address => uint256) contributions; // slot 4
-    // Mapping to track if an address has claimed their tokens
+    /// @notice Mapping to track if an address has claimed their tokens
     mapping(address => bool) hasClaimed; // slot 5
 
     /// @notice Mapping of addresses who have claimed tokens
     mapping(address => bool) public hasClaimedClawback;
 
+    /// @notice Address of the owner
     address public immutable OWNER;
     /// @notice ERC20-claimee inclusion root
     bytes32 public merkleRoot;
     /// @notice base allocation for clawback
-    uint256 public baseAllocation;
+    uint256 public clawbackAllocation;
 
-    // selector for the balanceOf function
-    bytes32 constant BALANCE_OF_SELECTOR = bytes4(keccak256("balanceOf(address)"));
-    // Selector for the transfer function
+    /// @notice Selector for the transfer function, used in assembly
     bytes32 constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
 
+    /// @notice Event emitted when a clawback is claimed
     event ClawbackClaimed(address to);
 
     /**
@@ -81,9 +78,9 @@ contract PublicSale {
     ) {
         SOFT_CAP = _softCap;
         HARD_CAP = _hardCap;
+        saleEnd = _saleEnd;
         LIQ_RATIO = liqRatio;
         TREASURY = _treasury;
-        saleEnd = _saleEnd;
     }
 
     /**
@@ -94,15 +91,13 @@ contract PublicSale {
         uint _saleEnd = saleEnd;
         assembly {
             if lt(_saleEnd, timestamp()) { revert(0, 0) }
-            if lt(callvalue(), 1000000) { revert(0, 0) }
-            // load contributions[msg.sender] slot
+            if lt(callvalue(), 1) { revert(0, 0) }
+
             let ptr := mload(0x40)
             mstore(ptr, caller())
             mstore(add(ptr, 0x20), 4)
             let contribSlot := keccak256(ptr, 0x40)
-            // increment totalRaised
             sstore(totalRaised.slot, add(sload(totalRaised.slot), callvalue()))
-            // increment contributions[msg.sender]
             sstore(contribSlot, add(sload(contribSlot), callvalue()))
         }
     }
@@ -116,7 +111,6 @@ contract PublicSale {
         assembly {
             if lt(timestamp(), _saleEnd) { revert(0, 0) }
             if sload(saleEnded.slot) { revert(0, 0) }
-            // set saleEnded to true
             sstore(saleEnded.slot, 1)
         }
     }
@@ -128,7 +122,7 @@ contract PublicSale {
     function claim() external {
         uint _SOFT_CAP = SOFT_CAP;
         uint _HARD_CAP = HARD_CAP;
-        uint _TO_SELL = SALE_ALLOCATION;
+        uint _SALE_ALLOCATION = SALE_ALLOCATION;
         address _TOKEN = token;
         bytes32 _TRANSFER_SELECTOR = TRANSFER_SELECTOR;
         assembly {
@@ -145,7 +139,6 @@ contract PublicSale {
             mstore(add(ptr, 0x20), 5)
             let hasClaimedSlot := keccak256(ptr, 0x40)
             if sload(hasClaimedSlot) { revert(0, 0) }
-            // set hasClaimed[msg.sender] to true
             sstore(hasClaimedSlot, 1)
             let totalRaisedValue := sload(totalRaised.slot)
             /*
@@ -165,7 +158,7 @@ contract PublicSale {
                  */
                 let scalingFactor := 1000000000000000000 // 10^18    
                 let scaledRatio := div(mul(contributionAmount, scalingFactor), totalRaisedValue)
-                let amountOut := div(mul(scaledRatio, _TO_SELL), scalingFactor)
+                let amountOut := div(mul(scaledRatio, _SALE_ALLOCATION), scalingFactor)
                 mstore(ptr, _TRANSFER_SELECTOR)
                 mstore(add(ptr, 0x04), caller())
                 mstore(add(ptr, 0x24), amountOut)
@@ -246,6 +239,8 @@ contract PublicSale {
             SUPPLY,
             TREASURY
         ));
+        Rose rose = Rose(payable(token));
+        rose.transfer(TREASURY, TREASURY_ALLOCATION);
         _wrapUp();
         return token;
     }
@@ -254,10 +249,7 @@ contract PublicSale {
     /// @param to address of claimee
     /// @param proof merkle proof to prove address is in the tree
     function claimClawback(address to, bytes32[] calldata proof) external {
-        uint _saleEnd = saleEnd;
-        assembly {
-            if lt(timestamp(), _saleEnd) { revert(0, 0) }
-        }
+        require(block.timestamp > saleEnd, "Sale must end before claiming clawback");
         require(merkleRoot != bytes32(0), "Merkle root not set");
         // Throw if address has already claimed tokens
         require(token != address(0), "Token not deployed");
@@ -271,32 +263,35 @@ contract PublicSale {
 
         Rose rose = Rose(payable(token));
 
-        (bool balanceSuccess, bytes memory balanceData) = address(rose).call(abi.encodeWithSignature("balanceOf(address)", address(this)));
-        require(balanceSuccess && balanceData.length == 32, "Balance call failed");
-        uint256 clawbackBalance = abi.decode(balanceData, (uint256));
-        require(clawbackBalance >= baseAllocation, "Insufficient clawback balance");
-        (bool transferSuccess, bytes memory transferData) = address(rose).call(abi.encodeWithSignature("transfer(address,uint256)", to, baseAllocation));
-        require(transferSuccess && transferData.length == 0, "Transfer failed");
+        uint256 tokenBalance = rose.balanceOf(address(this));
+        require(tokenBalance >= clawbackAllocation, "Insufficient balance");
+        rose.transfer(to, clawbackAllocation);
         emit ClawbackClaimed(to);
     }
 
-    function setMerkleRootAndBaseAllocation(bytes32 _merkleRoot, uint256 _baseAllocation) external {
+    /// @notice Sets the merkle root and base allocation
+    /// @param _merkleRoot Merkle root of the clawback merkle tree
+    /// @param _clawbackAllocation Base allocation for clawback
+    function setMerkleRootAndBaseAllocation(bytes32 _merkleRoot, uint256 _clawbackAllocation) external {
         require(msg.sender == OWNER, "Only owner can set merkle root");
         merkleRoot = _merkleRoot;
-        baseAllocation = _baseAllocation;
+        clawbackAllocation = _clawbackAllocation;
     }
 
-    function setSaleEnd(uint256 _saleEnd, bool _saleEnded) external {
+    /// @notice Sets the sale end timestamp and the sale ended flag
+    /// @param _saleEnd Timestamp of sale end
+    function setSaleEnd(uint256 _saleEnd) external {
         require(msg.sender == OWNER, "Only owner can set sale end");
         saleEnd = _saleEnd;
-        saleEnded = _saleEnded;
     }
 
+    /// @notice Transfers the remaining allocation to the treasury
     function transferUnusedAllocation() external {
-        require(saleEnd + 30 days < block.timestamp, "Sale must end before transferring unused allocation");
         require(msg.sender == OWNER, "Only owner can transfer unused allocation");
+        require(saleEnd + 30 days < block.timestamp, "30 days must pass before transferring unused allocation");
         require(token != address(0), "Token not deployed");
         Rose rose = Rose(payable(token));
         rose.transfer(TREASURY, rose.balanceOf(address(this)));
     }
+
 }
