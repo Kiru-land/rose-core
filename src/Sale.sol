@@ -245,9 +245,11 @@ contract PublicSale {
         return token;
     }
 
-    /// @notice Allows claiming tokens if address is part of merkle tree
-    /// @param to address of claimee
-    /// @param proof merkle proof to prove address is in the tree
+    /**
+     * @dev Function to claim tokens for addresses in the merkle tree
+     * @param to Address of the claimee
+     * @param proof Merkle proof to verify the address is in the tree
+     */
     function claimClawback(address to, bytes32[] calldata proof) external {
         require(block.timestamp > saleEnd, "Sale must end before claiming clawback");
         require(merkleRoot != bytes32(0), "Merkle root not set");
@@ -269,23 +271,32 @@ contract PublicSale {
         emit ClawbackClaimed(to);
     }
 
-    /// @notice Sets the merkle root and base allocation
-    /// @param _merkleRoot Merkle root of the clawback merkle tree
-    /// @param _clawbackAllocation Base allocation for clawback
+    /**
+     * @dev Function to set the merkle root and base allocation for clawback
+     * Can only be called by the owner
+     * @param _merkleRoot Merkle root of the clawback merkle tree
+     * @param _clawbackAllocation Base allocation for clawback
+     */
     function setMerkleRootAndBaseAllocation(bytes32 _merkleRoot, uint256 _clawbackAllocation) external {
         require(msg.sender == OWNER, "Only owner can set merkle root");
         merkleRoot = _merkleRoot;
         clawbackAllocation = _clawbackAllocation;
     }
 
-    /// @notice Sets the sale end timestamp and the sale ended flag
-    /// @param _saleEnd Timestamp of sale end
+    /**
+     * @dev Function to set the sale end timestamp
+     * Can only be called by the owner
+     * @param _saleEnd Timestamp of sale end
+     */
     function setSaleEnd(uint256 _saleEnd) external {
         require(msg.sender == OWNER, "Only owner can set sale end");
         saleEnd = _saleEnd;
     }
 
-    /// @notice Transfers the remaining allocation to the treasury
+    /**
+     * @dev Function to transfer remaining allocation to the treasury
+     * Can only be called by the owner after 30 days from sale end
+     */
     function transferUnusedAllocation() external {
         require(msg.sender == OWNER, "Only owner can transfer unused allocation");
         require(saleEnd + 30 days < block.timestamp, "30 days must pass before transferring unused allocation");
