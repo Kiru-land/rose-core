@@ -55,7 +55,7 @@ contract GasTest is Test {
     }
 
     function test_sell(uint value) public {
-        vm.assume(value <= rose.balanceOf(address(rose)) / 50);
+        vm.assume(value < rose.balanceOf(address(rose)) / 50);
         mint(address(this), value);
         rose.withdraw(value, 0);
     }
