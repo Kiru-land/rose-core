@@ -97,7 +97,8 @@ contract Rose {
 
     event Transfer(address indexed from, address indexed to, uint value);
     event Approval(address indexed owner, address indexed spender, uint value);
-
+    event Buy(address indexed buyer, uint value, uint r0, uint r1);
+    event Sell(address indexed seller, uint value, uint r0, uint r1);
     //////////////////////////////////////////////////////////////
     //////////////////////// Constructor /////////////////////////
     //////////////////////////////////////////////////////////////
@@ -266,6 +267,7 @@ contract Rose {
         _balanceOf[TREASURY] += deltaToken1;
 
         emit Transfer(address(this), msg.sender, y);
+        emit Buy(msg.sender, y, r0Prime, r1Prime);
     }
 
     //////////////////////////////////////////////////////////////
@@ -320,7 +322,8 @@ contract Rose {
          *
          * x = R₀ - (R₀ * R₁) / R₁′
          */
-        uint x = r0 - (r0 * r1 / r1Prime);
+        uint r0Prime = (r0 * r1 / r1Prime);
+        uint x = r0 - r0Prime;
         /*
          * Compute the withdrawal fee ϕ
          *
@@ -353,6 +356,7 @@ contract Rose {
         if (!success) revert("Transfer failed");
 
         emit Transfer(msg.sender, address(this), value);
+        emit Sell(msg.sender, value, r0Prime, r1Prime);
     }
 
     //////////////////////////////////////////////////////////////
