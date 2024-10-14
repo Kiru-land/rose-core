@@ -94,6 +94,10 @@ contract Rose {
       * @notice The initial reserve of ROSE R₁(0)
       */
     uint immutable R1_INIT;
+    /**
+      * @notice Buyback address
+      */
+    address public immutable TREASURY;
 
     /**
       * @notice constant storage slots
@@ -110,7 +114,11 @@ contract Rose {
     bytes32 constant BUY_EVENT_SIG = keccak256("Buy(address,uint,uint,uint)");
     bytes32 constant SELL_EVENT_SIG = keccak256("Sell(address,uint,uint,uint)");
 
-    address public immutable TREASURY;
+
+    event Transfer(address indexed from, address indexed to, uint value);
+    event Approval(address indexed owner, address indexed spender, uint value);
+    event Buy(address indexed chad, uint in, uint out, uint r0, uint r1);
+    event Sell(address indexed jeet, uint in, uint out, uint r0, uint r1);
 
     //////////////////////////////////////////////////////////////
     //////////////////////// Constructor /////////////////////////
@@ -330,12 +338,11 @@ contract Rose {
             /*
              * emit Buy event
              */
-            mstore(ptr, chad)
-            mstore(add(ptr, 0x20), x)
-            mstore(add(ptr, 0x40), y)
-            mstore(add(ptr, 0x60), r0)
-            mstore(add(ptr, 0x80), r1)
-            log2(ptr, 0xA0, _BUY_EVENT_SIG, caller())
+            mstore(add(ptr, 0x40), x)
+            mstore(add(ptr, 0x60), y)
+            mstore(add(ptr, 0x80), r0)
+            mstore(add(ptr, 0xA0), r1)
+            log2(add(ptr, 0x20), 0xA0, _BUY_EVENT_SIG, chad)
         }
     }
 
@@ -350,7 +357,7 @@ contract Rose {
       *      before withdrawing, it instead requires the caller to have enough
       *      balance, then balance slots gets updated accordingly.
       *
-      * @param value The amount of ETH to withdraw.
+      * @param value The amount of ROSE to sell.
       *
       * @param out The minimum amount of ETH to receive.
       *            This parameter introduces slippage bounds for the trade.
@@ -438,7 +445,7 @@ contract Rose {
              */
             sstore(FROM_BALANCE_SLOT, sub(balanceFrom, value))
             /*
-             * increment recipient's balance
+             * increase bonding curve balance
              */
             sstore(_SELF_BALANCE_SLOT, add(sload(_SELF_BALANCE_SLOT), value))
             /*
