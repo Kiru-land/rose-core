@@ -73,13 +73,14 @@ contract Rose {
     string public constant name = "Rose";
     string public constant symbol = "ROSE";
     uint8 public constant decimals = 18;
-    uint256 public immutable totalSupply;
 
     mapping(address => uint) private _balanceOf; // slot 0
 
     mapping(address => mapping(address => uint)) private _allowance; // slot 1
 
     uint cumulatedFees; // slot 2
+
+    uint256 public totalSupply; // slot 3
 
     /**
       * @notice The initial skew factor α(0) scaled by 1e6
@@ -99,6 +100,7 @@ contract Rose {
       */
     bytes32 immutable SELF_BALANCE_SLOT;
     bytes32 immutable TREASURY_BALANCE_SLOT;
+    bytes32 immutable BURN_BALANCE_SLOT;
 
     /**
       * @notice event signatures
@@ -127,8 +129,8 @@ contract Rose {
         ALPHA_INIT = _alpha;
         PHI_FACTOR =  _phi;
         R1_INIT = _r1Init;
-        totalSupply = _supply;
         TREASURY = _treasury;
+        totalSupply = _supply;
 
         bytes32 _SELF_BALANCE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT;
@@ -232,7 +234,7 @@ contract Rose {
         uint _ALPHA_INIT = ALPHA_INIT;
         uint _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
-        bytes32 _TREASURY_BALANCE_SLOT = TREASURY_BALANCE_SLOT;
+        bytes32 _BURN_BALANCE_SLOT = BURN_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
         bytes32 _BUY_EVENT_SIG = BUY_EVENT_SIG;
         assembly {
@@ -312,8 +314,12 @@ contract Rose {
             sstore(_SELF_BALANCE_SLOT, r1Prime)
             let balanceOfCaller := sload(CALLER_BALANCE_SLOT)
             sstore(CALLER_BALANCE_SLOT, add(balanceOfCaller, y))
-            let balanceOfTreasury := sload(_TREASURY_BALANCE_SLOT)
-            sstore(_TREASURY_BALANCE_SLOT, add(balanceOfTreasury, deltaToken1))
+            let balanceOfBurn := sload(_BURN_BALANCE_SLOT)
+            sstore(_BURN_BALANCE_SLOT, add(balanceOfBurn, deltaToken1))
+            /*
+             * decrease total supply
+             */
+            sstore(3, sub(sload(3), deltaToken1))
             /*
              * emit Transfer event
              */
@@ -755,6 +761,19 @@ contract Rose {
         }
     }
 
+    function burn(uint value) public {
+      assembly {
+        let ptr := mload(0x40)
+        let from := caller()
+        mstore(ptr, from)
+        mstore(add(ptr, 0x20), 0)
+        let FROM_BALANCE_SLOT := keccak256(ptr, 0x40)
+        let balanceFrom := sload(FROM_BALANCE_SLOT)
+        if lt(balanceFrom, value) { revert(0, 0) }
+        sstore(FROM_BALANCE_SLOT, sub(balanceFrom, value))
+        sstore(3, sub(sload(3), value))
+      }
+    }
     /**
       * @notice Collects the cumulated withdraw fees and transfers them to the treasury.
       */
