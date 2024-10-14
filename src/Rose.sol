@@ -362,7 +362,7 @@ contract Rose {
       * @param out The minimum amount of ETH to receive.
       *            This parameter introduces slippage bounds for the trade.
       */
-    function withdraw(uint value, uint out) external payable {
+    function withdraw(uint value, uint out) external {
         uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
