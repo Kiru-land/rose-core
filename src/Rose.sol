@@ -111,8 +111,8 @@ contract Rose {
       */
     bytes32 constant TRANSFER_EVENT_SIG = keccak256("Transfer(address,address,uint)");
     bytes32 constant APPROVAL_EVENT_SIG = keccak256("Approval(address,address,uint)");
-    bytes32 constant BUY_EVENT_SIG = keccak256("Buy(address,uint,uint,uint)");
-    bytes32 constant SELL_EVENT_SIG = keccak256("Sell(address,uint,uint,uint)");
+    bytes32 constant BUY_EVENT_SIG = keccak256("Buy(address,uint256,uint256,uint256,uint256)");
+    bytes32 constant SELL_EVENT_SIG = keccak256("Sell(address,uint256,uint256,uint256,uint256)");
 
 
     event Transfer(address indexed from, address indexed to, uint value);
