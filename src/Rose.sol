@@ -109,11 +109,6 @@ contract Rose {
 
     address public immutable TREASURY;
 
-    event Transfer(address indexed from, address indexed to, uint value);
-    event Approval(address indexed owner, address indexed spender, uint value);
-    event Buy(address indexed chad, uint value, uint r0, uint r1);
-    event Sell(address indexed jeet, uint value, uint r0, uint r1);
-
     //////////////////////////////////////////////////////////////
     //////////////////////// Constructor /////////////////////////
     //////////////////////////////////////////////////////////////
@@ -235,11 +230,9 @@ contract Rose {
       *         R₁′ = (R₀ * R₁) / R₀′
       *
       * @param out The minimum amount of ROSE to receive.
-      *               This parameter introduces slippage bounds for the trade.
-      *
-      * @return The amount of ROSE received.
+      *            This parameter introduces slippage bounds for the trade.
       */
-    function deposit(uint out) external payable returns (uint) {
+    function deposit(uint out) external payable {
         uint _ALPHA_INIT = ALPHA_INIT;
         uint _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
@@ -248,10 +241,11 @@ contract Rose {
         bytes32 _BUY_EVENT_SIG = BUY_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
+            let chad := caller()
             /*
              * Load balanceOf[msg.sender] slot
              */
-            mstore(ptr, caller())
+            mstore(ptr, chad)
             mstore(add(ptr, 0x20), 0)
             let CALLER_BALANCE_SLOT := keccak256(ptr, 0x40)
             /*
@@ -328,22 +322,18 @@ contract Rose {
              * emit Transfer event
              */
             mstore(ptr, address())
-            mstore(add(ptr, 0x20), caller())
+            mstore(add(ptr, 0x20), chad)
             mstore(add(ptr, 0x40), y)
-            log3(ptr, 0x60, _TRANSFER_EVENT_SIG, address(), caller())
+            log3(ptr, 0x60, _TRANSFER_EVENT_SIG, address(), chad)
             /*
              * emit Buy event
              */
-            mstore(ptr, caller())
-            mstore(add(ptr, 0x20), y)
-            mstore(add(ptr, 0x40), r0)
-            mstore(add(ptr, 0x60), r1)
-            log2(ptr, 0x80, _BUY_EVENT_SIG, caller())
-            /*
-             * return amount out
-             */
-            mstore(ptr, y)
-            return(ptr, 0x20)
+            mstore(ptr, chad)
+            mstore(add(ptr, 0x20), x)
+            mstore(add(ptr, 0x40), y)
+            mstore(add(ptr, 0x60), r0)
+            mstore(add(ptr, 0x80), r1)
+            log2(ptr, 0xA0, _BUY_EVENT_SIG, caller())
         }
     }
 
@@ -361,11 +351,9 @@ contract Rose {
       * @param value The amount of ETH to withdraw.
       *
       * @param out The minimum amount of ETH to receive.
-      *               This parameter introduces slippage bounds for the trade.
-      *
-      * @return The amount of ETH received.
+      *            This parameter introduces slippage bounds for the trade.
       */
-    function withdraw(uint value, uint out) external payable returns (uint) {
+    function withdraw(uint value, uint out) external payable {
         uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
@@ -375,8 +363,8 @@ contract Rose {
             /*
              * Load balanceOf[msg.sender] slot
              */
-            let from := caller()
-            mstore(ptr, from)
+            let jeet := caller()
+            mstore(ptr, jeet)
             mstore(add(ptr, 0x20), 0)
             let FROM_BALANCE_SLOT := keccak256(ptr, 0x40)
             /*
@@ -442,7 +430,7 @@ contract Rose {
             /*
              * Transfer ETH to the seller's address
              */
-            if iszero(call(gas(), from, out, 0, 0, 0, 0)) { revert(0, 0) }
+            if iszero(call(gas(), jeet, out, 0, 0, 0, 0)) { revert(0, 0) }
             /*
              * decrease sender's balance
              */
@@ -454,22 +442,18 @@ contract Rose {
             /*
              * emit Transfer event
              */
-            mstore(ptr, from)
+            mstore(ptr, jeet)
             mstore(add(ptr, 0x20), address())
             mstore(add(ptr, 0x40), value)
-            log3(ptr, 0x60, _TRANSFER_EVENT_SIG, from, address())
+            log3(ptr, 0x60, _TRANSFER_EVENT_SIG, jeet, address())
             /*
              * emit Sell event
              */
-            mstore(add(ptr, 0x20), out)
-            mstore(add(ptr, 0x40), r0)
-            mstore(add(ptr, 0x60), r1)
-            log2(ptr, 0x80, _SELL_EVENT_SIG, from)
-            /*
-             * return amount out
-             */
-            mstore(ptr, x)
-            return(ptr, 0x20)
+            mstore(add(ptr, 0x20), y)
+            mstore(add(ptr, 0x40), out)
+            mstore(add(ptr, 0x60), r0)
+            mstore(add(ptr, 0x80), r1)
+            log2(ptr, 0xA0, _SELL_EVENT_SIG, jeet)
         }
     }
 

@@ -146,8 +146,9 @@ contract RoseTest is Test {
         uint selfInitialWethBalance = address(this).balance;
         uint quote = rose.quoteDeposit(value);
 
-        uint out = rose.deposit{value: value}(quote);
-        assertEq(quote, out);
+        rose.deposit{value: value}(quote);
+        
+        // assertEq(quote, out);
 
         (uint r0Prime, uint r1Prime, uint alphaPrime) = rose.getState();
         assertEq(address(this).balance, selfInitialWethBalance - value);
@@ -176,8 +177,8 @@ contract RoseTest is Test {
         (uint r0, uint r1, uint alpha) = rose.getState();
         uint quote = rose.quoteWithdraw(value);
 
-        uint out = rose.withdraw(value, quote);
-        assertEq(quote, out);
+        rose.withdraw(value, quote);
+        // assertEq(quote, out);
 
         (uint r0Prime, uint r1Prime, uint alphaPrime) = rose.getState();
         uint fees = address(rose).balance - r0Prime;
