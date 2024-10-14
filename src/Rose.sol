@@ -117,8 +117,8 @@ contract Rose {
 
     event Transfer(address indexed from, address indexed to, uint value);
     event Approval(address indexed owner, address indexed spender, uint value);
-    event Buy(address indexed chad, uint in, uint out, uint r0, uint r1);
-    event Sell(address indexed jeet, uint in, uint out, uint r0, uint r1);
+    event Buy(address indexed chad, uint amountIn, uint amountOut, uint r0, uint r1);
+    event Sell(address indexed jeet, uint amountIn, uint amountOut, uint r0, uint r1);
 
     //////////////////////////////////////////////////////////////
     //////////////////////// Constructor /////////////////////////
