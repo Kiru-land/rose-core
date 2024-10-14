@@ -407,17 +407,17 @@ contract Rose {
              * 
              * R₁′ = R₁ + y
              */
-            let r1prime := add(r1, y)
+            let r1Prime := add(r1, y)
             /*
              * R₀′ = K / R₁′
              */
-            let r0prime := div(mul(r0, r1), r1prime)
+            let r0Prime := div(mul(r0, r1), r1Prime)
             /*
              * Compute the raw amount out x
              *
              * x = R₀ - R₀′
              */
-            let raw_x := sub(r0, r0prime)
+            let raw_x := sub(r0, r0Prime)
             /*
              * Compute the withdrawal fee ϕ
              *
@@ -460,7 +460,7 @@ contract Rose {
              */
             mstore(ptr, value)
             mstore(add(ptr, 0x20), out)
-            mstore(add(ptr, 0x40), r0prime)
+            mstore(add(ptr, 0x40), r0Prime)
             mstore(add(ptr, 0x60), r1Prime)
             log2(ptr, 0x80, _SELL_EVENT_SIG, jeet)
         }
@@ -514,8 +514,8 @@ contract Rose {
             let ptr := mload(0x40)
             let r0 := sub(selfbalance(), sload(2))
             let r1 := sload(_SELF_BALANCE_SLOT)
-            let r1prime := add(r1, value)
-            let x := sub(r0, div(mul(r0, r1), r1prime))
+            let r1Prime := add(r1, value)
+            let x := sub(r0, div(mul(r0, r1), r1Prime))
             let phi := div(mul(x, _PHI_FACTOR), 1000000)
             let xOut := sub(x, phi)
             mstore(ptr, xOut)
