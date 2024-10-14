@@ -73,6 +73,7 @@ contract Rose {
     string public constant name = "Rose";
     string public constant symbol = "ROSE";
     uint8 public constant decimals = 18;
+    uint256 public immutable totalSupply;
 
     mapping(address => uint) private _balanceOf; // slot 0
 
@@ -126,10 +127,10 @@ contract Rose {
         ALPHA_INIT = _alpha;
         PHI_FACTOR =  _phi;
         R1_INIT = _r1Init;
+        totalSupply = _supply;
         TREASURY = _treasury;
 
         bytes32 _SELF_BALANCE_SLOT;
-        bytes32 _LAUNCH_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT;
 
         assembly {
@@ -146,15 +147,10 @@ contract Rose {
             mstore(ptr, _treasury)
             _TREASURY_BALANCE_SLOT := keccak256(ptr, 0x40)
             /*
-             * Load balanceOf[msg.sender] slot
-             */
-            mstore(ptr, caller())
-            _LAUNCH_SLOT := keccak256(ptr, 0x40)
-            /*
              * Set the initial balances
              */
             sstore(_SELF_BALANCE_SLOT, _r1Init)
-            sstore(_LAUNCH_SLOT, sub(_supply, _r1Init))
+            sstore(_TREASURY_BALANCE_SLOT, sub(_supply, _r1Init))
         }
         /*
          * set constants
