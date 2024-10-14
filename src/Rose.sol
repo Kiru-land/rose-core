@@ -331,8 +331,8 @@ contract Rose {
             /*
              * emit Transfer event
              */
-            mstore(ptr, address())
-            mstore(add(ptr, 0x20), chad)
+            mstore(ptr, and(address(), 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
+            mstore(add(ptr, 0x20), and(chad, 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
             mstore(add(ptr, 0x40), y)
             log3(ptr, 0x60, _TRANSFER_EVENT_SIG, address(), chad)
             /*
@@ -451,8 +451,8 @@ contract Rose {
             /*
              * emit Transfer event
              */
-            mstore(ptr, jeet)
-            mstore(add(ptr, 0x20), address())
+            mstore(ptr, and(jeet, 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
+            mstore(add(ptr, 0x20), and(address(), 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
             mstore(add(ptr, 0x40), value)
             log3(ptr, 0x60, _TRANSFER_EVENT_SIG, jeet, address())
             /*
