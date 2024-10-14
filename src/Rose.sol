@@ -74,24 +74,24 @@ contract Rose {
     string public constant symbol = "ROSE";
     uint8 public constant decimals = 18;
 
-    mapping(address => uint256) private _balanceOf; // slot 0
+    mapping(address => uint) private _balanceOf; // slot 0
 
-    mapping(address => mapping(address => uint256)) private _allowance; // slot 1
+    mapping(address => mapping(address => uint)) private _allowance; // slot 1
 
-    uint256 cumulatedFees; // slot 2
+    uint cumulatedFees; // slot 2
 
     /**
       * @notice The initial skew factor α(0) scaled by 1e6
       */
-    uint256 immutable ALPHA_INIT;
+    uint immutable ALPHA_INIT;
     /**
       * @notice The slash factor ϕ scaled by 1e6
       */
-    uint256 immutable PHI_FACTOR;
+    uint immutable PHI_FACTOR;
     /**
       * @notice The initial reserve of ROSE R₁(0)
       */
-    uint256 immutable R1_INIT;
+    uint immutable R1_INIT;
 
     /**
       * @notice constant storage slots
@@ -102,15 +102,17 @@ contract Rose {
     /**
       * @notice event signatures
       */
-    bytes32 constant TRANSFER_EVENT_SIG = keccak256("Transfer(address,address,uint256)");
-    bytes32 constant APPROVAL_EVENT_SIG = keccak256("Approval(address,address,uint256)");
+    bytes32 constant TRANSFER_EVENT_SIG = keccak256("Transfer(address,address,uint)");
+    bytes32 constant APPROVAL_EVENT_SIG = keccak256("Approval(address,address,uint)");
+    bytes32 constant BUY_EVENT_SIG = keccak256("Buy(address,uint,uint,uint)");
+    bytes32 constant SELL_EVENT_SIG = keccak256("Sell(address,uint,uint,uint)");
 
     address public immutable TREASURY;
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-    event Buy(address indexed buyer, uint value, uint r0, uint r1);
-    event Sell(address indexed seller, uint value, uint r0, uint r1);
+    event Transfer(address indexed from, address indexed to, uint value);
+    event Approval(address indexed owner, address indexed spender, uint value);
+    event Buy(address indexed chad, uint value, uint r0, uint r1);
+    event Sell(address indexed jeet, uint value, uint r0, uint r1);
 
     //////////////////////////////////////////////////////////////
     //////////////////////// Constructor /////////////////////////
@@ -120,10 +122,10 @@ contract Rose {
       * @notice t=0 state
       */
     constructor(
-      uint256 _alpha,
-      uint256 _phi, 
-      uint256 _r1Init, 
-      uint256 _supply,
+      uint _alpha,
+      uint _phi, 
+      uint _r1Init, 
+      uint _supply,
       address _treasury
       ) payable {
         ALPHA_INIT = _alpha;
@@ -232,17 +234,18 @@ contract Rose {
       *         R₀′ = R₀ + x
       *         R₁′ = (R₀ * R₁) / R₀′
       *
-      * @param outMin The minimum amount of ROSE to receive.
+      * @param out The minimum amount of ROSE to receive.
       *               This parameter introduces slippage bounds for the trade.
       *
       * @return The amount of ROSE received.
       */
-    function deposit(uint256 outMin) external payable returns (uint256) {
-        uint256 _ALPHA_INIT = ALPHA_INIT;
-        uint256 _R1_INIT = R1_INIT;
+    function deposit(uint out) external payable returns (uint) {
+        uint _ALPHA_INIT = ALPHA_INIT;
+        uint _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT = TREASURY_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
+        bytes32 _BUY_EVENT_SIG = BUY_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
             /*
@@ -312,7 +315,7 @@ contract Rose {
             /*
              * Ensures that the amount out is within slippage bounds
              */
-            if gt(outMin, y) {revert(0, 0)}
+            if gt(out, y) {revert(0, 0)}
             /*
              * Update the market reserves to (R₀′, R₁′) then update balances
              */
@@ -328,6 +331,14 @@ contract Rose {
             mstore(add(ptr, 0x20), caller())
             mstore(add(ptr, 0x40), y)
             log3(ptr, 0x60, _TRANSFER_EVENT_SIG, address(), caller())
+            /*
+             * emit Buy event
+             */
+            mstore(ptr, caller())
+            mstore(add(ptr, 0x20), y)
+            mstore(add(ptr, 0x40), r0)
+            mstore(add(ptr, 0x60), r1)
+            log2(ptr, 0x80, _BUY_EVENT_SIG, caller())
             /*
              * return amount out
              */
@@ -349,15 +360,16 @@ contract Rose {
       *
       * @param value The amount of ETH to withdraw.
       *
-      * @param outMin The minimum amount of ETH to receive.
+      * @param out The minimum amount of ETH to receive.
       *               This parameter introduces slippage bounds for the trade.
       *
       * @return The amount of ETH received.
       */
-    function withdraw(uint256 value, uint256 outMin) external payable returns (uint256) {
-        uint256 _PHI_FACTOR = PHI_FACTOR;
+    function withdraw(uint value, uint out) external payable returns (uint) {
+        uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
+        bytes32 _SELL_EVENT_SIG = SELL_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
             /*
@@ -406,31 +418,31 @@ contract Rose {
              *
              * x = R₀ - (R₀ * R₁) / R₁′
              */
-            let x := sub(r0, div(mul(r0, r1), r1prime))
+            let raw_x := sub(r0, div(mul(r0, r1), r1prime))
             /*
              * Compute the withdrawal fee ϕ
              *
              * ϕ = x * ϕfactor
              */
-            let phi := div(mul(x, _PHI_FACTOR), 1000000)
+            let phi := div(mul(raw_x, _PHI_FACTOR), 1000000)
             /*
-             * Compute the amount out xOut
+             * Compute the amount out x
              *
-             * xOut = x - ϕ
+             * x = x - ϕ
              */
-            let xOut := sub(x, phi)
+            let x := sub(raw_x, phi)
             /*
              * Ensures that the amount out is within slippage bounds
              */
-            if gt(outMin, xOut) {revert(0, 0)}
+            if gt(out, x) {revert(0, 0)}
             /*
-             * increment cumulated fees by ϕ
+             * increment cumulated fees
              */
-            sstore(2, add(_cumulatedFees, phi))
+            sstore(2, add(add(_cumulatedFees, phi), sub(x, out)))
             /*
-             * Transfer x-ϕ ETH to the seller's address
+             * Transfer ETH to the seller's address
              */
-            if iszero(call(gas(), from, xOut, 0, 0, 0, 0)) { revert(0, 0) }
+            if iszero(call(gas(), from, out, 0, 0, 0, 0)) { revert(0, 0) }
             /*
              * decrease sender's balance
              */
@@ -447,9 +459,16 @@ contract Rose {
             mstore(add(ptr, 0x40), value)
             log3(ptr, 0x60, _TRANSFER_EVENT_SIG, from, address())
             /*
+             * emit Sell event
+             */
+            mstore(add(ptr, 0x20), out)
+            mstore(add(ptr, 0x40), r0)
+            mstore(add(ptr, 0x60), r1)
+            log2(ptr, 0x80, _SELL_EVENT_SIG, from)
+            /*
              * return amount out
              */
-            mstore(ptr, xOut)
+            mstore(ptr, x)
             return(ptr, 0x20)
         }
     }
@@ -466,9 +485,9 @@ contract Rose {
       *
       * @return The amount of ROSE received.
       */
-    function quoteDeposit(uint256 value) public view returns (uint256) {
-        uint256 _ALPHA_INIT = ALPHA_INIT;
-        uint256 _R1_INIT = R1_INIT;
+    function quoteDeposit(uint value) public view returns (uint) {
+        uint _ALPHA_INIT = ALPHA_INIT;
+        uint _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         assembly {
             let ptr := mload(0x40)
@@ -495,8 +514,8 @@ contract Rose {
       *
       * @return The amount of ETH received.
       */
-    function quoteWithdraw(uint256 value) public view returns (uint256) {
-        uint256 _PHI_FACTOR = PHI_FACTOR;
+    function quoteWithdraw(uint value) public view returns (uint) {
+        uint _PHI_FACTOR = PHI_FACTOR;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         assembly {
             let ptr := mload(0x40)
@@ -524,9 +543,9 @@ contract Rose {
       *
       * @return alpha The skew factor α(t).
       */
-    function getState() public view returns (uint256 r0, uint256 r1, uint256 alpha) {
-        uint256 _ALPHA_INIT = ALPHA_INIT;
-        uint256 _R1_INIT = R1_INIT;
+    function getState() public view returns (uint r0, uint r1, uint alpha) {
+        uint _ALPHA_INIT = ALPHA_INIT;
+        uint _R1_INIT = R1_INIT;
         bytes32 _SELF_BALANCE_SLOT = SELF_BALANCE_SLOT;
         assembly {
             r0 := sub(selfbalance(), sload(2))
@@ -548,7 +567,7 @@ contract Rose {
       *
       * @return _balance The balance of the specified address.
       */
-     function balanceOf(address to) public view returns (uint256 _balance) {
+     function balanceOf(address to) public view returns (uint _balance) {
         assembly {
             let ptr := mload(0x40)
             /*
@@ -573,7 +592,7 @@ contract Rose {
       *
       * @return __allowance The amount of tokens that the spender is allowed to transfer from the owner.
       */
-     function allowance(address owner, address spender) public view returns (uint256 __allowance) {
+     function allowance(address owner, address spender) public view returns (uint __allowance) {
         assembly {
             let ptr := mload(0x40)
             /*
@@ -603,7 +622,7 @@ contract Rose {
       *
       * @return true
       */
-    function transfer(address to, uint256 value) public returns (bool) {
+    function transfer(address to, uint value) public returns (bool) {
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
@@ -661,7 +680,7 @@ contract Rose {
       *
       * @return true
       */
-    function transferFrom(address from, address to, uint256 value) public returns (bool) {
+    function transferFrom(address from, address to, uint value) public returns (bool) {
         bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
@@ -723,7 +742,7 @@ contract Rose {
         }
     }
 
-    function approve(address to, uint256 value) public returns (bool) {
+    function approve(address to, uint value) public returns (bool) {
         bytes32 _APPROVAL_EVENT_SIG = APPROVAL_EVENT_SIG;
         assembly {
             let ptr := mload(0x40)
