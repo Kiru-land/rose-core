@@ -759,6 +759,7 @@ contract Rose {
     }
 
     function burn(uint value) public {
+      bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
       assembly {
         let ptr := mload(0x40)
         let from := caller()
@@ -770,7 +771,7 @@ contract Rose {
         sstore(FROM_BALANCE_SLOT, sub(balanceFrom, value))
         sstore(3, sub(sload(3), value))
         mstore(ptr, value)
-        log3(ptr, 0x20, TRANSFER_EVENT_SIG, from, 0)
+        log3(ptr, 0x20, _TRANSFER_EVENT_SIG, from, 0)
       }
     }
     /**
