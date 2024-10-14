@@ -331,18 +331,16 @@ contract Rose {
             /*
              * emit Transfer event
              */
-            mstore(ptr, and(address(), 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
-            mstore(add(ptr, 0x20), and(chad, 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
-            mstore(add(ptr, 0x40), y)
-            log3(ptr, 0x60, _TRANSFER_EVENT_SIG, address(), chad)
+            mstore(add(ptr, 0x20), y)
+            log3(add(ptr, 0x20), 0x20, _TRANSFER_EVENT_SIG, address(), chad)
             /*
              * emit Buy event
              */
-            mstore(add(ptr, 0x40), x)
-            mstore(add(ptr, 0x60), y)
-            mstore(add(ptr, 0x80), r0)
-            mstore(add(ptr, 0xA0), r1)
-            log2(add(ptr, 0x20), 0xA0, _BUY_EVENT_SIG, chad)
+            mstore(ptr, x)
+            mstore(add(ptr, 0x20), y)
+            mstore(add(ptr, 0x40), r0)
+            mstore(add(ptr, 0x60), r1)
+            log2(ptr, 0x80, _BUY_EVENT_SIG, chad)
         }
     }
 
@@ -451,18 +449,16 @@ contract Rose {
             /*
              * emit Transfer event
              */
-            mstore(ptr, and(jeet, 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
-            mstore(add(ptr, 0x20), and(address(), 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
-            mstore(add(ptr, 0x40), value)
-            log3(ptr, 0x60, _TRANSFER_EVENT_SIG, jeet, address())
+            mstore(ptr, value)
+            log3(ptr, 0x20, _TRANSFER_EVENT_SIG, jeet, address())
             /*
              * emit Sell event
              */
-            mstore(add(ptr, 0x20), y)
-            mstore(add(ptr, 0x40), out)
-            mstore(add(ptr, 0x60), r0)
-            mstore(add(ptr, 0x80), r1)
-            log2(ptr, 0xA0, _SELL_EVENT_SIG, jeet)
+            mstore(ptr, value)
+            mstore(add(ptr, 0x20), out)
+            mstore(add(ptr, 0x40), r0)
+            mstore(add(ptr, 0x60), r1)
+            log2(ptr, 0x80, _SELL_EVENT_SIG, jeet)
         }
     }
 
@@ -647,10 +643,8 @@ contract Rose {
             /*
              * emit Transfer event
              */
-            mstore(ptr, from)
-            mstore(add(ptr, 0x20), to)
-            mstore(add(ptr, 0x40), value)
-            log3(ptr, 0x60, _TRANSFER_EVENT_SIG, from, to)
+            mstore(ptr, value)
+            log3(ptr, 0x20, _TRANSFER_EVENT_SIG, from, to)
             /*
              * return true
              */
@@ -723,10 +717,8 @@ contract Rose {
             /*
              * Emit Transfer event
              */
-            mstore(ptr, from)
-            mstore(add(ptr, 0x20), to)
-            mstore(add(ptr, 0x40), value)
-            log3(ptr, 0x60, _TRANSFER_EVENT_SIG, from, to)
+            mstore(ptr, value)
+            log3(ptr, 0x20, _TRANSFER_EVENT_SIG, from, to)
             /*
              * Return true
              */
@@ -756,10 +748,8 @@ contract Rose {
             /*
              * Emit Approval event
              */
-            mstore(ptr, owner)
-            mstore(add(ptr, 0x20), to)
-            mstore(add(ptr, 0x40), value)
-            log3(ptr, 0x60, _APPROVAL_EVENT_SIG, owner, to)
+            mstore(ptr, value)
+            log3(ptr, 0x20, _APPROVAL_EVENT_SIG, owner, to)
             /*
              * Return true
              */
@@ -779,6 +769,8 @@ contract Rose {
         if lt(balanceFrom, value) { revert(0, 0) }
         sstore(FROM_BALANCE_SLOT, sub(balanceFrom, value))
         sstore(3, sub(sload(3), value))
+        mstore(ptr, value)
+        log3(ptr, 0x20, TRANSFER_EVENT_SIG, from, 0)
       }
     }
     /**
