@@ -2,11 +2,11 @@
 pragma solidity ^0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Rose} from "../src/Rose.sol";
+import {Kiru} from "../src/Kiru.sol";
 
 contract GasTest is Test {
 
-    Rose public rose;
+    Kiru public kiru;
     uint256 public constant R0_INIT = 1e17;
     uint256 public constant ALPHA = 1e5;
     uint256 public constant PHI = 1e4;
@@ -18,7 +18,7 @@ contract GasTest is Test {
     address public constant TREASURY = address(0x3);
 
     function setUp() public {
-        rose = new Rose{salt: "REDROSE", value: R0_INIT}(
+        kiru = new Kiru{salt: "REDKIRU", value: R0_INIT}(
             ALPHA, 
             PHI, 
             R1_INIT, 
@@ -28,40 +28,40 @@ contract GasTest is Test {
     }
 
     function test_approve(address to, uint value) public {
-        rose.approve(to, value);
+        kiru.approve(to, value);
     }
 
     function test_transfer(address to, uint value) public {
         vm.assume(to != address(this));
-        vm.assume(to != address(rose));
+        vm.assume(to != address(kiru));
         mint(address(this), value);
-        rose.transfer(to, value);
+        kiru.transfer(to, value);
     }
 
     function test_transferFrom(address from, address to, uint value) public {
         vm.assume(address(this) != from);
         vm.assume(from != to);
-        vm.assume(to != address(rose));
+        vm.assume(to != address(kiru));
         mint(from, value);
         vm.startPrank(from);
-        rose.approve(address(this), value);
+        kiru.approve(address(this), value);
         vm.stopPrank();
-        rose.transferFrom(from, to, value);
+        kiru.transferFrom(from, to, value);
     }
 
     function test_buy(uint value) public {
         vm.assume(value < address(this).balance);
-        rose.deposit{value: value}(0);
+        kiru.deposit{value: value}(0);
     }
 
     function test_sell(uint value) public {
-        vm.assume(value < rose.balanceOf(address(rose)) / 50);
+        vm.assume(value < kiru.balanceOf(address(kiru)) / 50);
         mint(address(this), value);
-        rose.withdraw(value, 0);
+        kiru.withdraw(value, 0);
     }
 
     function test_collect() public {
-        rose.collect();
+        kiru.collect();
     }
 
     function mint(address to, uint value) internal {
@@ -72,7 +72,7 @@ contract GasTest is Test {
             mstore(add(ptr, 0x20), 0)
             TO_BALANCE_SLOT := keccak256(ptr, 0x40)
         }
-        vm.store(address(rose), TO_BALANCE_SLOT, bytes32(value));
+        vm.store(address(kiru), TO_BALANCE_SLOT, bytes32(value));
     }
 
     receive() external payable {}

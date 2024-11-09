@@ -2,11 +2,11 @@
 pragma solidity ^0.8.26; 
 
 import { Script } from "forge-std/Script.sol";
-import { Rose } from "../src/Rose.sol";
+import { Kiru } from "../src/Kiru.sol";
 
-contract RoseScript is Script {
+contract KiruScript is Script {
 
-    Rose public rose;
+    Kiru public kiru;
 
     // TODO: change to actual parameters
     uint256 public constant R0_INIT = 1e17;
@@ -21,7 +21,7 @@ contract RoseScript is Script {
 
     function run() external {
         vm.startBroadcast();
-        rose = new Rose{salt: "REDROSE", value: R0_INIT}(
+        kiru = new Kiru{salt: "kiruuu", value: R0_INIT}(
             ALPHA, 
             PHI, 
             R1_INIT, 

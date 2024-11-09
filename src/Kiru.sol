@@ -1,23 +1,62 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26; 
 
-/**
-  * @title 🌹
+ /*
+  *  
+  *                                                               :+####*-                         
+  *                                                 .-=+*%%%%##*##%%%%%%%%#+=.                   
+  *                                              :+*#%%%%%%%%%%%%####%%%%%%%%%*+.                
+  *                                            .+#%%%%%%%@@%%%%########%%%%%%%####*-             
+  *                                          .+#%%%%%%%%%%%%####%%%%#####%%%#####%%%*:           
+  *                                         =#%%%%%##########%%%%%%##***#%##*#**#%%%%%+.         
+  *                                       :*%%%%####%%%%%%%%%%%%%###*****##*****#%%%@@%%+        
+  *                                      :*%%%###%%%%%%%@@%%%%%###**************#%%%%@@%%#-      
+  *                                     .*#%###%%%##%%%%%%%%%####*###***********##%%%%%%%%#-     
+  *                                    .*#%########%%%%%%%%###***####*******##**###%%%%%%%%#-    
+  *                                    :*%########%%%%%%%%###***##%%%#******##***##%%%@%%%%%#-   
+  *                                   :*########%%%%%%%%###****###%@@%%#**#%###**###%%%%%%##%#:  
+  *                                   -******#%%%%%%%%###*******#%@@@@@%%%%%####**###%%%%%###%#. 
+  *                                   -*****#%%%@%%%###*+++-    .=%@@@@@%#=.  .=++*###%%%%#*##%#.
+  *                       -++++:     .*****#%%%%%%###**++-   :+***%@@@@@@+.-+=--:+*####%%%%#**##:
+  *                    =#%@@@@@%%#=.:+*#**#%%%%%%##****+.    +*+%%%@@@@@@+ .-*#+ :+*###%%%%#=:+*:
+  *                  +#@@@@@@@@@@@@#**###*#%%%%###****+:       :#%@@@@@@@+   -%#--=*####%%%#=:+*.
+  *                =#@@@@@@@@@@@@@@######*#%%%###****#= .:-.   .%@@@@@@@@#-  =@%#==**####%%#=.=. 
+  *              -#%@@@@@@@@@@%##########**#%%##**++*#+=#*=-:--+@@@@%%%%%#=-+#@@#+=**####%%*- :  
+  *             +%@@@@@@@@@@@%+--+*###**#***####*+=+**###-.....=@@@@%%%%%*:.+%%#=+***####%#:     
+  *            +%@@@@@@@@@@@%*:  -*##********##***++=+*##*-:::=*%@@%%%%%%%%#%%#+=+*#*####%*      
+  *           =%@@@@@@@@@@@%*:   -*##********#******++=+*#####%%@@%*==+#%@%%#*+=+*##*####*-      
+  *          =%@@@%@@@@@@@@#:    -**+-=***************+===+**##%%%%#*#%%%#*+==+**###*###%%%+     
+  *         =%@@@@%@@@@@@@%+     -**+  +*************+===-==+==+*******++==++***###****#%@@%+    
+  *        =#@@@@@%@@%%@@@#+      -*=   +**-:++++++=++##*+++**+===+*+===++******##+-+****#%@%+   
+  *       -#@@@@@@%%%@@@@%+        -=    -+.       :+#%%%%#+=+*##%%%##**==+*++*##*. +****#%@%*.  
+  *      -#@@@@@@@@@@@@@@%=                        :+#%%@%%#*++*#%%%*+*#*=-: :*##:  +**= +%@@%*  
+  *     -#%@@@@@@@@@@@@@@%=                         -+#%%%%%%#*++*##*+*##*-  .+%*   +***: =#%%*  
+  *    :*%%%@@@@@@@@@@@@@%=                         .=***#%%%%%#*++*++*#%#*-  .=.   +**=  -#%%*  
+  *   .*@@%%@@@@%@@@@%@@@%=                        .=*#*++*#%%@%%#*=-=*#%%#+-.      +*+.  -#%#=  
+  *   *%%%##%@@%#%@@%#%@@%=                       .=*####*++*#%@@%%#*++*%%%%+-      =:    -##+   
+  *  .#%*--+#@@%#%@@%#%@@%+                       -*###%%%#*=+*#%%@%%#+=*#%%#+:           -#*-   
+  *  .**:  .+%@%##%@@##%@@%+                     .=*#%%%%%%%#*++*#%%%%#++*%%%#+:          -*-    
+  *   :     =#%%**#@@@##@@%+                     =*##%%@@%%%###+==+*%%%#++#%%%%#=:.       :=.    
+  *          =##=.+%@@##%%%+                     =##%%@@@%*++*##*++++*+**++*###*++-              
+  *           -+= -*%%#+*%#+                    .=*#%%@@@%*=+#%%*=++-:--++=++++-=-.              
+  *                :##*.:*#*-               .-====+#%%@@@@#+=*%%#+=-.   :-:.:--:.                
+  *                 .+=  .+#*.             -+###*+=*%%@@@@%#+=*%%%#+.        :.                  
+  *                        .:             .+##*+=-=*#%@@@@@%#=*@@%%+.                            
+  *                                       .+#*=--+==*%%@@@@%#+*%@@%+.                            
+  *                                       .+#*=-+#*+*#%%@@@%*=*%%%#=                             
+  *                                       .+##+==*##**#%%%%*==*###=.                             
+  *                                        -+++===*#######*==*##*+:                              
+  *                                              .-=+*##*=---===:                                
+  *                                                  .::.       
   *
-  *            _____
-  *          .'/L|__`.
-  *         / =[_]O|` \
-  *        |   _  |   |
-  *        ;  (_)  ;  |
-  *         '.___.' \  \
-  *          |     | \  `-.
-  *         |    _|  `\    \
-  *          _./' \._   `-._\
-  *        .'/     `.`.   '_.-.   
+  * Welcome to Kiru Land.
   *
-  * @author 5A6E55E
+  *//**
+  * @title Kiru 👼🏻
   *
-  * @notice Rose is an efficient contract for the Rose tokenized bonding curve.
+  * @author Kiru
+  *
+  * @notice Kiru is an efficient contract for the Kiru tokenized bonding curve.
   *         Unification of the asset and it's canonical market under a single
   *         contract allows for precise control over the market-making strategy,
   *         fully automated.
@@ -30,48 +69,63 @@ pragma solidity ^0.8.26;
   *         :::         ◓ - - - - |   .     ...|                     :::
   *            ::::                ------------                  ::::
   *
-  * @dev Jita market, the bonding-curve of the Rose token, executes buys and
-  *      sells with different dynamics, exploiting this assymetry to optimise
-  *      for price volatility on buys and deep liquidity on sells.
+  * @dev Jita market, the bonding-curve of the Kiru token, executes buys and
+  *      sells with different dynamics to optimise for price volatility on buys
+  *      and deep liquidity on sells.
   *      Driven by the skew factor α(t), Jita binds price appreciation to
   *      uniform volume.
-  *      This contract leverages assembly to bypass solidity's overhead and
-  *      enable efficient market-making.
-  *
-  * todo: fix Transfer events emitting wrong amount
   */
-contract Rose {
+contract Kiru {
 
     //////////////////////////////////////////////////////////////
     /////////////////////////// State ////////////////////////////
     //////////////////////////////////////////////////////////////
 
-    /**
-      *             , .-.-,_,
-      *             )`-.>'` (
-      *            /     `\  |
-      *            |       | |
-      *             \     / /
-      *             `=(\ /.=`
-      *              `-;`.-'
-      *                `)|     ,
-      *                 ||  .-'|
-      *               ,_||  \_,/
-      *         ,      \|| .'
-      *         |\|\  , ||/
-      *        ,_\` |/| |Y_,
-      *         '-.'-._\||/
-      *            >_.-`Y|
-      *            `|   ||
-      *                 ||  
-      *                 ||
-      *                 ||
-      *                 ||
-      *
-      * @notice The Rose blossoms.
-      */
-    string public constant name = "Rose";
-    string public constant symbol = "ROSE";
+    /*
+     *                                                      -===:                                        
+     *                                            :-*%%%#**#@@@@@@%#-.                                   
+     *                                        .+#@@@@@@@@@@@%#%@@@@@@@%*:                                
+     *                                       +%@@@@@@@@@@@%%@@%#%@@@@@@%%%#:                             
+     *                                     +%@@@@@@@@@%%%@@@@@%###@@%##%%@@@#                            
+     *                                   =#@@@%%%@@@@@@@@@@@@%####%###**%@@@@@*                          
+     *                                  -%@@@%@@@@@@@@@@@@@%##*##*##****%@@@@@@@+                        
+     *                                 -#@%%@@@%@@@@@@@@@%######**#**###%%@@@@@@@+                       
+     *                                .#@%%@%##@@@@@@@@%#**#%%%#****##**#%@@@@@@@@=                      
+     *                                +%%#%%#%@@@@@@@%%#***#@@@@%#*###**#%@@@@@@@@@-                     
+     *                               .*#*##%@@@@@@@%##**#%%@@@@@@@%@@@%#*#%%@@@@%%@@-                    
+     *                               .+***%@@@@@@@%#*+=.   :#@@@@@@+. .=+*#%@@@@@#%@@-                   
+     *                     =#%#*:    *#*#%@@@@@@%#**+:  :*%%%@@@@@%.=*=-:+#%%%@@@%*#%=                   
+     *                  =@@@@@@@@@%**####@@@@@%#*+*+    :=+@@@@@@@%  :%# -*#%%@@@%==#-                   
+     *                -%@@@@@@@@@@@@##%##@@@@%#****.  .   -@@@@@@@@. .@@*=+#%%%@@%--=                    
+     *              :%@@@@@@@@@@%@%#%%%##%@@@%*+*##-#*-..:*@@@@@@@@=:+@@%++*#%%@@%::.                    
+     *             +@@@@@@@@@@%=:=#%%###*#%@%#*==*##%-.  .+@@@@@@%%:-#@%=+#*#%%@@-                       
+     *            +@@@@@@@@@@@=  :*##**#***##***+=+*#*+==*@@@@%%%@@@@@#+=*###%%@*                        
+     *           +@@@@@@@@@@@+   :*#*+*#*****##***+==*#%@@@@@#+*@@@%*+=+*%%##%%@#.                       
+     *          =@@@@@@@@@@@#.   :**-.+#*****#**##+=---==+#%%%%%#*===++*#%####%@@@:                      
+     *         =@@@@@@@@@@@@*     =*:  **=-+*+*+++*##++**+==+*+=-=+*#**###=+*##%@@%:                     
+     *        -@@@@@@@@@@@@#       -.   -:      :*@@@@#++*%@@@%##+=++=*#%+ -*#+*@@@=                     
+     *       :%@@@@@@@@@@@@#                    :+%@@@@%#++%@@*+##+-..+%*  -*#..*@@@:                    
+     *      :%@@@@@@@@@@@@@#                     -+#%@@@@%*++#*+#%%+:.:*=  -#*+ :%@@:                    
+     *     :%@@@@@@@@@@@@@@#                    .=##++#@@@@%*+=+%@@%+:     -*+  :%@#.                    
+     *    .%@@%%@@@%@@@@@@@#                    =#%%%*++%@@@@%*+*%@@%=.    ::   :%#:                     
+     *    .%@-.=@@@%@@@@@@@%:                  -*%%@@@%*+*%@@@@%+=%@@%=         :#+                      
+     *    .+.   *@@##@@@%@@@*                 :+#%@@@@@@%*+*%@@@%++%@@%=        :+:                      
+     *          .#@*:*@@%@@@*.                -*%@@@@@#*#%#*=+##*#++#%%#**+----                          
+     *           .*+.=@@%+%@*.                -*%@@@@@*=*@@*=+---=*+%@@@%#%@@@@@#.                       
+     *                =%*.-%%=            .-++=+#@@@@@%++%@%+=.   -#@@@@*%@@##@@@*.                      
+     *                 .:  .**           -*%%#+=#@@@@@@#+#@@@*.   @@@@#*@@%*##+@@@%:                     
+     *                                   =##=---+%@@@@@@*#@@@*.   @@@@#*@@%*##+@@@@-                     
+     *                                   =**--**+#@@@@@%+*@@@*.   @@@@#*@@%*##+@@@@-                     
+     *                                   =##+-*##*#@@@%*=*%%*:    @@@@**@@%*%%+@@@@-                     
+     *                                   .====-*#%%%%#+=*##+:     .=****#@@%%%%@@%=                      
+     *                                          :=+*+:.....        .=*###%@@@@@@@=                       
+     *                                                               .+#*+*%%%%:                         
+     *                                                                                                   
+     *//**
+     * @notice The Magical Token.
+     */
+    string public constant name = "Kiru";
+    string public constant symbol = "KIRU";
     uint8 public constant decimals = 18;
 
     mapping(address => uint) private _balanceOf; // slot 0
@@ -80,7 +134,7 @@ contract Rose {
 
     uint cumulatedFees; // slot 2
 
-    uint256 public totalSupply; // slot 3
+    uint256 _totalSupply; // slot 3
 
     /**
       * @notice The initial skew factor α(0) scaled by 1e6
@@ -91,7 +145,7 @@ contract Rose {
       */
     uint immutable PHI_FACTOR;
     /**
-      * @notice The initial reserve of ROSE R₁(0)
+      * @notice The initial reserve of KIRU R₁(0)
       */
     uint immutable R1_INIT;
     /**
@@ -136,9 +190,9 @@ contract Rose {
       ) payable {
         ALPHA_INIT = _alpha;
         PHI_FACTOR =  _phi;
-        R1_INIT = _r1Init;
+        R1_INIT = _r1Init / 2;
         TREASURY = _treasury;
-        totalSupply = _supply;
+        _totalSupply = _supply;
 
         bytes32 _SELF_BALANCE_SLOT;
         bytes32 _TREASURY_BALANCE_SLOT;
@@ -178,7 +232,7 @@ contract Rose {
       * Nomenclature:
       *
       *      R₀ = ETH reserves
-      *      R₁ = Rose reserves
+      *      R₁ = Kiru reserves
       *      x  = input amount
       *      y  = output amount
       *      K  = invariant R₀ * R₁
@@ -196,9 +250,9 @@ contract Rose {
       *                           ::::     :  . :::::
       *                               :::::::::::                              
       *
-      * @notice Deposit is the entry point for entering the Rose bonding-curve
-      *         upon receiving ETH, the rose contract computes the amount out `y`
-      *         using the [skew trading function](https://github.com/RedRoseMoney/Rose).
+      * @notice Deposit is the entry point for entering the Kiru bonding-curve
+      *         upon receiving ETH, the kiru contract computes the amount out `y`
+      *         using the [skew trading function](https://github.com/RedKiruMoney/Kiru).
       *         The result is an asymmetric bonding curve that can optimise for price
       *         appreciation, biased by the skew factor α(t).
       *
@@ -235,7 +289,7 @@ contract Rose {
       *         R₀′ = R₀ + x
       *         R₁′ = (R₀ * R₁) / R₀′
       *
-      * @param out The minimum amount of ROSE to receive.
+      * @param out The minimum amount of KIRU to receive.
       *            This parameter introduces slippage bounds for the trade.
       */
     function deposit(uint out) external payable {
@@ -263,15 +317,13 @@ contract Rose {
             let r0 := sub(sub(selfbalance(), sload(2)), callvalue())
             let r1 := sload(_SELF_BALANCE_SLOT)
             /*
-             * Compute the skew factor α(t)
+             * Compute the skew factor α(t) if activated
              */
-            let r1InitR1Ratio := div(mul(r1, 1000000), _R1_INIT)
+            let r1InitR1Ratio := mul(div(mul(r1, 1000000), _R1_INIT), gt(_R1_INIT, r1))
             let inverseAlpha := div(mul(_ALPHA_INIT, r1InitR1Ratio), 1000000)
             let alpha := sub(1000000, inverseAlpha)
             /*
-             * Compute the new reserves (R₀′, R₁′) and the amount out y
-             *
-             * α-reserves are reserves cut by the skew factor α(t)
+             * α-reserves: reserves cut by the skew factor α(t)
              */
             let alphaR0 := div(mul(alpha, r0), 1000000)
             let alphaR1 := div(mul(alpha, r1), 1000000)
@@ -303,15 +355,15 @@ contract Rose {
              * The new actual reserve 1, computed as new reserve 0 * α-ratio
              * where α-ratio: αR₁′ / αR₀′
              *
-             * R₁′ = (αR₁′ / αR₀′) * R₀′
+             * R₁′ = (αR₁′ / αR₀′) * R₀′ + ϵ
              */
-            let r1Prime := div(mul(div(mul(alphaR1Prime, 1000000), alphaR0Prime), r0Prime), 1000000)
+            let r1Prime := add(div(mul(div(mul(alphaR1Prime, 1000000), alphaR0Prime), r0Prime), 1000000), 1)
             /*
              * Delta between constant product of actual reserves and new reserve 1
              *
-             * ΔR₁ = R₀ * R₁ / R₀′ - R₁′
+             * ΔR₁ = R₁ - R₁′ - y
              */
-            let deltaToken1 := sub(div(mul(r0, r1), r0Prime), r1Prime)
+            let deltaToken1 := sub(sub(r1, r1Prime), y)
             /*
              * Ensures that the amount out is within slippage bounds
              */
@@ -349,13 +401,25 @@ contract Rose {
     //////////////////////////////////////////////////////////////
 
     /**
+      *
+      *            _____
+      *          .'/L|__`.
+      *         / =[_]O|` \
+      *        |   _  |   |
+      *        ;  (_)  ;  |
+      *         '.___.' \  \
+      *          |     | \  `-.
+      *         |    _|  `\    \
+      *          _./' \._   `-._\
+      *        .'/     `.`.   '_.-.   
+      *
       * @notice Withdraws ETH from Jita's bonding curve
       *
       * @dev This contracts operate at low-level and does not require sending funds 
       *      before withdrawing, it instead requires the caller to have enough
       *      balance, then balance slots gets updated accordingly.
       *
-      * @param value The amount of ROSE to sell.
+      * @param value The amount of KIRU to sell.
       *
       * @param out The minimum amount of ETH to receive.
       *            This parameter introduces slippage bounds for the trade.
@@ -382,23 +446,26 @@ contract Rose {
             let _cumulatedFees := sload(2)
             /*
              *  load market's reserves (R₀, R₁)
+             *
+             *      r₀ = ETH balance - cumulated fees
+             *      r₁ = KIRU balance
              */
             let r0 := sub(selfbalance(), _cumulatedFees)
             let r1 := sload(_SELF_BALANCE_SLOT)
             let y := value
             /*
-             * Only allow sell orders under 5% of Rose's liquidity
+             * Only allow sell orders under 5% of Kiru's liquidity
              * to prevent divergence.
              */
-            if gt(y, div(r1,20)) { revert(0, 0) }
+            if gt(y, div(r1, 5)) { revert(0, 0) }
             /*
-             * the rose sent is sold for ETH using the CP formula:
+             * the kiru sent is sold for ETH using the CP formula:
              *
              *     y = (R₁ - K / (R₀ + x)) * ϕfactor
              *
              * where:
              *
-             *    y: Rose amount in
+             *    y: Kiru amount in
              *    x: Eth amount out
              *    K: R₀ * R₁
              *    ϕfactor: withdrawal penalty factor
@@ -437,11 +504,7 @@ contract Rose {
             /*
              * increment cumulated fees
              */
-            sstore(2, add(add(_cumulatedFees, phi), sub(x, out)))
-            /*
-             * Transfer ETH to the seller's address
-             */
-            if iszero(call(gas(), jeet, out, 0, 0, 0, 0)) { revert(0, 0) }
+            sstore(2, add(_cumulatedFees, phi))
             /*
              * decrease sender's balance
              */
@@ -451,6 +514,10 @@ contract Rose {
              */
             sstore(_SELF_BALANCE_SLOT, add(sload(_SELF_BALANCE_SLOT), value))
             /*
+             * Transfer ETH to the seller's address
+             */
+            if iszero(call(gas(), jeet, x, 0, 0, 0, 0)) { revert(0, 0) }
+            /*
              * emit Transfer event
              */
             mstore(ptr, value)
@@ -459,7 +526,7 @@ contract Rose {
              * emit Sell event
              */
             mstore(ptr, value)
-            mstore(add(ptr, 0x20), out)
+            mstore(add(ptr, 0x20), x)
             mstore(add(ptr, 0x40), r0Prime)
             mstore(add(ptr, 0x60), r1Prime)
             log2(ptr, 0x80, _SELL_EVENT_SIG, jeet)
@@ -471,12 +538,12 @@ contract Rose {
     //////////////////////////////////////////////////////////////
 
     /**
-      * @notice Computes the amount of ROSE received for a given amount of ETH deposited
+      * @notice Computes the amount of KIRU received for a given amount of ETH deposited
       *         given the current market reserves.
       *
       * @param value The amount of ETH to deposit.
       *
-      * @return The amount of ROSE received.
+      * @return The amount of KIRU received.
       */
     function quoteDeposit(uint value) public view returns (uint) {
         uint _ALPHA_INIT = ALPHA_INIT;
@@ -486,7 +553,7 @@ contract Rose {
             let ptr := mload(0x40)
             let r0 := sub(selfbalance(), sload(2))
             let r1 := sload(_SELF_BALANCE_SLOT)
-            let r1InitR1Ratio := div(mul(r1, 1000000), _R1_INIT)
+            let r1InitR1Ratio := mul(div(mul(r1, 1000000), _R1_INIT), gt(_R1_INIT, r1))
             let inverseAlpha := div(mul(_ALPHA_INIT, r1InitR1Ratio), 1000000)
             let alpha := sub(1000000, inverseAlpha)
             let alphaR0 := div(mul(alpha, r0), 1000000)
@@ -500,10 +567,10 @@ contract Rose {
     }
 
     /**
-      * @notice Computes the amount of ETH received for a given amount of ROSE withdrawn
+      * @notice Computes the amount of ETH received for a given amount of KIRU withdrawn
       *         given the current market reserves.
       *
-      * @param value The amount of ROSE to withdraw.
+      * @param value The amount of KIRU to withdraw.
       *
       * @return The amount of ETH received.
       */
@@ -530,9 +597,9 @@ contract Rose {
     /**
       * @notice Returns the market's reserves and the skew factor α(t).
       *
-      * @return r0 The balance of the ROSE contract.
+      * @return r0 The balance of the KIRU contract.
       *
-      * @return r1 The balance of the ROSE contract.
+      * @return r1 The balance of the KIRU contract.
       *
       * @return alpha The skew factor α(t).
       */
@@ -543,14 +610,14 @@ contract Rose {
         assembly {
             r0 := sub(selfbalance(), sload(2))
             r1 := sload(_SELF_BALANCE_SLOT)
-            let r1InitR1Ratio := div(mul(r1, 1000000), _R1_INIT)
+            let r1InitR1Ratio := mul(div(mul(r1, 1000000), _R1_INIT), gt(_R1_INIT, r1))
             let inverseAlpha := div(mul(_ALPHA_INIT, r1InitR1Ratio), 1000000)
             alpha := sub(1000000, inverseAlpha)
         }
     }
 
     //////////////////////////////////////////////////////////////
-    //////////////////////////// ROSE ////////////////////////////
+    //////////////////////////// KIRU ////////////////////////////
     //////////////////////////////////////////////////////////////
 
     /**
@@ -611,7 +678,7 @@ contract Rose {
       *
       * @param to The address to transfer to.
       *
-      * @param value The amount of rose to transfer.
+      * @param value The amount of kiru to transfer.
       *
       * @return true
       */
@@ -667,7 +734,7 @@ contract Rose {
       *
       * @param to The address to transfer to.
       *
-      * @param value The amount of rose to transfer.
+      * @param value The amount of kiru to transfer.
       *
       * @return true
       */
@@ -778,6 +845,11 @@ contract Rose {
         log3(ptr, 0x20, _TRANSFER_EVENT_SIG, from, 0)
       }
     }
+
+    function totalSupply() public view returns (uint) {
+        return _totalSupply;
+    }
+
     /**
       * @notice Collects the cumulated withdraw fees and transfers them to the treasury.
       */
