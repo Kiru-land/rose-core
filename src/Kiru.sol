@@ -138,6 +138,7 @@ contract Kiru {
       uint _alpha,
       uint _phi, 
       uint _r1Init, 
+      uint _treasuryInit,
       uint _supply,
       address _treasury
       ) payable {
@@ -166,8 +167,8 @@ contract Kiru {
             /*
              * Set the initial balances
              */
-            sstore(_SELF_BALANCE_SLOT, _r1Init)
-            sstore(_TREASURY_BALANCE_SLOT, sub(_supply, _r1Init))
+            sstore(_SELF_BALANCE_SLOT, _treasuryInit)
+            sstore(_TREASURY_BALANCE_SLOT, sub(_supply, _treasuryInit))
         }
         /*
          * set constants
