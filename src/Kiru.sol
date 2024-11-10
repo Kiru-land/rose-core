@@ -798,6 +798,24 @@ contract Kiru {
         }
     }
 
+    
+    /**
+      * @notice Approves a spender to transfer KIRU tokens on behalf of the caller
+      *         This function implements the ERC20 approve functionality, allowing
+      *         delegation of token transfers to other addresses.
+      *
+      * @dev This function sets the allowance that the spender can transfer from
+      *      the caller's balance. The allowance can be increased or decreased
+      *      by calling this function again with a different value.
+      *      Note that setting a non-zero allowance from a non-zero value should
+      *      typically be done by first setting it to zero to prevent front-running.
+      *
+      * @param to The address being approved to spend tokens
+      *
+      * @param value The amount of tokens the spender is approved to transfer
+      *
+      * @return bool Returns true if the approval was successful
+      */
     function approve(address to, uint value) public returns (bool) {
         bytes32 _APPROVAL_EVENT_SIG = APPROVAL_EVENT_SIG;
         assembly {
@@ -829,6 +847,17 @@ contract Kiru {
         }
     }
 
+    /**
+      * @notice Burns KIRU tokens from the caller's balance
+      *         The burned tokens are permanently removed from circulation,
+      *         reducing the total supply.
+      *
+      * @dev This function requires the caller to have sufficient balance.
+      *      The tokens are burned by transferring them to the zero address
+      *      and decreasing the total supply.
+      *
+      * @param value The amount of KIRU tokens to burn
+      */
     function burn(uint value) public {
       bytes32 _TRANSFER_EVENT_SIG = TRANSFER_EVENT_SIG;
       assembly {
@@ -845,7 +874,13 @@ contract Kiru {
         log3(ptr, 0x20, _TRANSFER_EVENT_SIG, from, 0)
       }
     }
-
+  
+    /**
+     * @notice Returns the total supply of KIRU tokens in circulation
+     * @dev This value decreases when tokens are burned and represents the current
+     *      amount of KIRU tokens that exist
+     * @return The total number of KIRU tokens in circulation
+     */
     function totalSupply() public view returns (uint) {
         return _totalSupply;
     }
