@@ -76,8 +76,8 @@ contract Bond {
     INonfungiblePositionManager constant positionManager = INonfungiblePositionManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
     address constant WETH9 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     uint24 constant poolFee = 10000; // 1%
-    bool positionCreated = false;
-    uint256 positionId;
+    bool public positionCreated = false;
+    uint256 public positionId;
 
     // full range ticks
     int24 constant MIN_TICK = -887200;
@@ -102,7 +102,7 @@ contract Bond {
     //////////////////////////////////////////////////////////////
 
     function bond(uint outMin, uint amount0Min, uint amount1Min) external payable {
-        // require(msg.sender.code.length == 0, "Only non-contracts can call this function");
+        require(msg.sender.code.length == 0, "Only non-contracts can call this function");
         require(msg.value > 0, "No ETH sent");
         /*
          * Compute the amount of kiru received if msg.value was deposited
@@ -128,9 +128,6 @@ contract Bond {
         uint256 amount0Desired = IERC20(WETH9).balanceOf(address(this));
         uint256 amount1Desired = balanceAfterSwap - balanceBeforeSwap;
 
-        uint256 amount0;
-        uint256 amount1;
-
         if (!positionCreated) {
             INonfungiblePositionManager.MintParams memory mintParams =
             INonfungiblePositionManager.MintParams({
@@ -149,7 +146,7 @@ contract Bond {
             /*
              * Add liquidity
              */
-            (uint256 tokenId, uint256 liquidity, uint256 amount0, uint256 amount1) = positionManager.mint(mintParams);
+            (uint256 tokenId,,,) = positionManager.mint(mintParams);
             positionId = tokenId;
             positionCreated = true;
 
@@ -187,6 +184,8 @@ contract Bond {
             });
             positionManager.increaseLiquidity(increaseParams);
         }
+
+        require(IERC20(kiru).transfer(msg.sender, reward), "Transfer failed");
     }
 
     function onERC721Received(

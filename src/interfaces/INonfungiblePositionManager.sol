@@ -138,4 +138,6 @@ interface INonfungiblePositionManager {
     function factory() external view returns (address);
 
     function burn(uint256 tokenId) external payable;
+
+    function ownerOf(uint256 tokenId) external view returns (address);
 }
