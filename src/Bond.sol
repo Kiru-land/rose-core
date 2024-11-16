@@ -82,6 +82,10 @@ interface IERC20 {
     function transfer(address recipient, uint256 amount) external returns (bool);
 }
 
+interface IWETH9 {
+    function deposit() external payable;
+}
+
 /**
   * @author Kiru
   *
@@ -102,6 +106,8 @@ contract Bond {
     int24 constant MAX_TICK = 887272;
 
     address immutable kiru;
+    address constant locker = 0xFD235968e65B0990584585763f837A5b5330e6DE;
+    address constant treasury = 0x2d69b5b0C06f5C0b14d11D9bc7e622AC5316c018;
 
     //////////////////////////////////////////////////////////////
     //////////////////////// CONSTRUCTOR /////////////////////////
@@ -115,7 +121,7 @@ contract Bond {
     //////////////////////////////////////////////////////////////
     //////////////////////////// BOND ////////////////////////////
     //////////////////////////////////////////////////////////////
-
+    event log(string, uint);
     function bond(uint outMin, uint amount0Min, uint amount1Min) external payable {
         require(msg.value > 0, "No ETH sent");
 
@@ -127,18 +133,28 @@ contract Bond {
          * Compute the amount of Kiru reward to receive
          */
         uint reward = quoteKiru * 120000 / 100000;
-        require(reward > IERC20(kiru).balanceOf(address(this)), "Not enough rewards left");
+        require(IERC20(kiru).balanceOf(address(this)) > reward, "Not enough rewards left");
 
         uint256 halfETH = msg.value / 2;
 
         /*
          * Deposit half ETH into Kiru's bonding curve, compute amount out
          */
-        uint balanceBeforeSwap = IERC20(kiru).balanceOf(msg.sender);
+        uint balanceBeforeSwap = IERC20(kiru).balanceOf(address(this));
         IKiru(kiru).deposit{value: halfETH}(outMin);
-        uint balanceAfterSwap = IERC20(kiru).balanceOf(msg.sender);
+        uint balanceAfterSwap = IERC20(kiru).balanceOf(address(this));
         require(balanceAfterSwap > balanceBeforeSwap, "Swap failed");
-        uint256 amountTokenOut = balanceAfterSwap - balanceBeforeSwap;
+        IWETH9(WETH9).deposit{value: address(this).balance}();
+
+        uint256 amount0Desired = IERC20(WETH9).balanceOf(address(this));
+        uint256 amount1Desired = balanceAfterSwap - balanceBeforeSwap;
+        require(IERC20(WETH9).approve(address(positionManager), amount0Desired), "WETH9 approval failed");
+        require(IERC20(kiru).approve(address(positionManager), amount1Desired), "Kiru approval failed");
+
+        emit log("amount0Desired", amount0Desired);
+        emit log("amount1Desired", amount1Desired);
+        emit log("weth balance", IERC20(WETH9).balanceOf(address(this)));
+        emit log("kiru balance", IERC20(kiru).balanceOf(address(this)));
 
         INonfungiblePositionManager.MintParams memory params =
             INonfungiblePositionManager.MintParams({
@@ -147,41 +163,41 @@ contract Bond {
                 fee: poolFee,
                 tickLower: MIN_TICK,
                 tickUpper: MAX_TICK,
-                amount0Desired: msg.value - halfETH,
-                amount1Desired: amountTokenOut,
+                amount0Desired: amount0Desired,
+                amount1Desired: amount1Desired,
                 amount0Min: amount0Min,
                 amount1Min: amount1Min,
-                recipient: msg.sender,
+                recipient: address(this),
                 deadline: block.timestamp
             });
 
         /*
          * Add liquidity, then send remaining ETH to the position manager
          */
-        (
-            uint256 tokenId,
-            uint128 liquidity,
-            uint256 amount0,
-            uint256 amount1
-        ) = positionManager.mint{value: msg.value - halfETH}(params);
+        // (
+        //     uint256 tokenId,
+        //     uint128 liquidity,
+        //     uint256 amount0,
+        //     uint256 amount1
+        // ) = positionManager.mint(params);
 
-        /*
-         * Refund leftover ETH and tokens to the sender
-         */
-        uint256 refundETH = (msg.value - halfETH) - amount0;
-        uint256 refundToken = amountTokenOut - amount1;
+        // /*
+        //  * Refund leftover ETH and tokens to the sender
+        //  */
+        // uint256 refundETH = (msg.value - halfETH) - amount0;
+        // uint256 refundToken = amountTokenOut - amount1;
 
-        if (refundETH > 0) {
-            payable(msg.sender).transfer(refundETH);
-        }
+        // if (refundETH > 0) {
+        //     payable(msg.sender).transfer(refundETH);
+        // }
 
-        if (refundToken > 0) {
-            IERC20(kiru).transfer(msg.sender, refundToken);
-        }
+        // if (refundToken > 0) {
+        //     IERC20(kiru).transfer(msg.sender, refundToken);
+        // }
 
-        /*
-         * Send the reward to the sender
-         */
-        IERC20(kiru).transfer(msg.sender, reward);
+        // /*
+        //  * Send the reward to the sender
+        //  */
+        // IERC20(kiru).transfer(msg.sender, reward);
     }
 }
