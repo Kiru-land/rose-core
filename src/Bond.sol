@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import "./interfaces/LiquidityLocker.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 /*
  *                     ... ..  .                             :  .. .:.                                    
@@ -74,10 +75,12 @@ contract Bond {
     INonfungiblePositionManager constant positionManager = INonfungiblePositionManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
     address constant WETH9 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     uint24 constant poolFee = 10000; // 1%
+    bool positionCreated = false;
+    uint256 positionId;
 
     // full range ticks
-    int24 constant MIN_TICK = -887272;
-    int24 constant MAX_TICK = 887272;
+    int24 constant MIN_TICK = -887200;
+    int24 constant MAX_TICK = 887200;
 
     address immutable kiru;
     address constant locker = 0xFD235968e65B0990584585763f837A5b5330e6DE;
@@ -96,7 +99,7 @@ contract Bond {
     //////////////////////////////////////////////////////////////
     //////////////////////////// BOND ////////////////////////////
     //////////////////////////////////////////////////////////////
-    event log(string, uint);
+
     function bond(uint outMin, uint amount0Min, uint amount1Min) external payable {
         require(msg.value > 0, "No ETH sent");
 
@@ -124,15 +127,12 @@ contract Bond {
 
         uint256 amount0Desired = IERC20(WETH9).balanceOf(address(this));
         uint256 amount1Desired = balanceAfterSwap - balanceBeforeSwap;
-        // require(IERC20(WETH9).approve(address(positionManager), amount0Desired), "WETH9 approval failed");
-        // require(IERC20(kiru).approve(address(positionManager), amount1Desired), "Kiru approval failed");
 
-        emit log("amount0Desired", amount0Desired);
-        emit log("amount1Desired", amount1Desired);
-        emit log("weth balance", IERC20(WETH9).balanceOf(address(this)));
-        emit log("kiru balance", IERC20(kiru).balanceOf(address(this)));
+        uint256 amount0;
+        uint256 amount1;
 
-        INonfungiblePositionManager.MintParams memory params =
+        if (!positionCreated) {
+            INonfungiblePositionManager.MintParams memory mintParams =
             INonfungiblePositionManager.MintParams({
                 token0: WETH9,
                 token1: kiru,
@@ -144,24 +144,59 @@ contract Bond {
                 amount0Min: amount0Min,
                 amount1Min: amount1Min,
                 recipient: address(this),
-                deadline: block.timestamp + 100000
+                deadline: block.timestamp
             });
+            /*
+             * Add liquidity
+             */
+            (uint256 tokenId, uint256 liquidity, uint256 amount0Refunded, uint256 amount1Refunded) = positionManager.mint(mintParams);
+            positionId = tokenId;
+            positionCreated = true;
+            amount0 = amount0Refunded;
+            amount1 = amount1Refunded;
+
+            /*
+             * Lock liquidity
+             */
+            uint256 unlockDate = block.timestamp + 365 days;
+            uint16 countryCode = 66;
+            IUNCX_LiquidityLocker_UniV3.LockParams memory lockParams = IUNCX_LiquidityLocker_UniV3.LockParams(
+                positionManager,
+                tokenId,
+                treasury,
+                treasury,
+                address(0),
+                treasury,
+                unlockDate,
+                countryCode,
+                "DEFAULT",
+                new bytes[](0)
+            );
+            positionManager.approve(address(locker), tokenId);
+            IUNCX_LiquidityLocker_UniV3(locker).lock(lockParams);
+        } else {
+            /*
+             * Increase liquidity
+             */
+            INonfungiblePositionManager.IncreaseLiquidityParams memory increaseParams =
+            INonfungiblePositionManager.IncreaseLiquidityParams({
+                tokenId: positionId,
+                amount0Desired: amount0Desired,
+                amount1Desired: amount1Desired,
+                amount0Min: amount0Min,
+                amount1Min: amount1Min,
+                deadline: block.timestamp
+            });
+            (, uint256 amount0Refunded, uint256 amount1Refunded) = positionManager.increaseLiquidity(increaseParams);
+            amount0 = amount0Refunded;
+            amount1 = amount1Refunded;
+        }
 
         /*
-         * Add liquidity, then send remaining ETH to the position manager
+         * Refund leftover ETH and tokens to the sender
          */
-        (
-            uint256 tokenId,
-            uint128 liquidity,
-            uint256 amount0,
-            uint256 amount1
-        ) = positionManager.mint(params);
-
-        // /*
-        //  * Refund leftover ETH and tokens to the sender
-        //  */
-        // uint256 refundETH = (msg.value - halfETH) - amount0;
-        // uint256 refundToken = amountTokenOut - amount1;
+        // uint256 refundETH = amount0Desired - amount0;
+        // uint256 refundToken = amount1Desired - amount1;
 
         // if (refundETH > 0) {
         //     payable(msg.sender).transfer(refundETH);
@@ -175,26 +210,14 @@ contract Bond {
         //  * Send the reward to the sender
         //  */
         // IERC20(kiru).transfer(msg.sender, reward);
+    }
 
-        // Lock liquidity in the locker
-        // uint256 unlockDate = block.timestamp + 365 days;
-        // uint16 countryCode = 66;
-        // bytes[] memory r = [];
-
-        // LockParams lockParams = IUNCX_LiquidityLocker_UniV3.LockParams(
-        //     positionManager,
-        //     tokenId,
-        //     treasury,
-        //     treasury,
-        //     address(0),
-        //     treasury,
-        //     unlockDate,
-        //     countryCode,
-        //     "DEFAULT",
-        //     r
-        // );
-
-        // IUNCX_LiquidityLocker_UniV3(locker).lock(lockParams);
-        
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
     }
 }

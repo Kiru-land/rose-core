@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {Bond} from "../src/Bond.sol";
 import {Kiru} from "../src/Kiru.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IUniswapV3PoolState} from "../src/interfaces/IUniswapV3PoolState.sol";
 
 // Mock contracts for testing
 contract BondTest is Test {
@@ -14,8 +15,8 @@ contract BondTest is Test {
     // Constants
     address constant WETH9 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     uint24 constant POOL_FEE = 10000; // 1%
-    int24 constant MIN_TICK = -887272;
-    int24 constant MAX_TICK = 887272;
+    int24 constant MIN_TICK = -887200;
+    int24 constant MAX_TICK = 887200;
     address TREASURY = 0x2d69b5b0C06f5C0b14d11D9bc7e622AC5316c018;
 
     function setUp() public {
@@ -40,6 +41,7 @@ contract BondTest is Test {
     // }
 
     function testBond() public {
+
         // Setup test values
         uint ethAmount = 0.001 ether;
         uint outMin = 0;
