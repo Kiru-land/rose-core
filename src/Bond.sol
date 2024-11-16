@@ -205,8 +205,7 @@ contract Bond {
             IERC20(kiru).transfer(treasury, kiruAmount);
         }
         if (wethBalance > wethAmount) {
-            IWETH9(WETH9).withdraw(wethAmount);
-            payable(treasury).transfer(wethAmount);
+            IERC20(WETH9).transfer(treasury, wethAmount);
         }
     }
 }
