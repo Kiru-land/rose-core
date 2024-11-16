@@ -9,30 +9,30 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 // Mock contracts for testing
 contract BondTest is Test {
     Bond public bond;
-    Kiru public kiru;
+    address payable kiru = payable(0xe04d4E49Fd4BCBcE2784cca8B80CFb35A4C01da2);
     
     // Constants
     address constant WETH9 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     uint24 constant POOL_FEE = 10000; // 1%
     int24 constant MIN_TICK = -887272;
     int24 constant MAX_TICK = 887272;
-    address TREASURY = address(1);
+    address TREASURY = 0x2d69b5b0C06f5C0b14d11D9bc7e622AC5316c018;
 
     function setUp() public {
         // Deploy mock Kiru token
-        kiru = new Kiru{value: 10e18}(
-            10e4,
-            10e5,
-            850000000000000000000000000000,
-            1000000000000000000000000000000,
-            TREASURY
-            );
+        // kiru = new Kiru{value: 10e18}(
+        //     10e4,
+        //     10e5,
+        //     850000000000000000000000000000,
+        //     1000000000000000000000000000000,
+        //     TREASURY
+        //     );
         // Deploy Bond contract
         bond = new Bond(address(kiru));
         // Transfer some Kiru tokens to Bond contract for rewards
         vm.deal(address(this), 100_000 * 1e18);
         vm.prank(TREASURY);
-        kiru.transfer(address(bond), 150000000000000000000000000000);
+        Kiru(kiru).transfer(address(bond), 75000000000000000000000000000);
     }
 
     // function test_kiru() public {

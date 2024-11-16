@@ -116,6 +116,7 @@ contract Bond {
     constructor(address _kiru) {
         kiru = _kiru;
         IERC20(kiru).approve(address(positionManager), type(uint256).max);
+        IERC20(WETH9).approve(address(positionManager), type(uint256).max);
     }
 
     //////////////////////////////////////////////////////////////
@@ -144,12 +145,13 @@ contract Bond {
         IKiru(kiru).deposit{value: halfETH}(outMin);
         uint balanceAfterSwap = IERC20(kiru).balanceOf(address(this));
         require(balanceAfterSwap > balanceBeforeSwap, "Swap failed");
+
         IWETH9(WETH9).deposit{value: address(this).balance}();
 
         uint256 amount0Desired = IERC20(WETH9).balanceOf(address(this));
         uint256 amount1Desired = balanceAfterSwap - balanceBeforeSwap;
-        require(IERC20(WETH9).approve(address(positionManager), amount0Desired), "WETH9 approval failed");
-        require(IERC20(kiru).approve(address(positionManager), amount1Desired), "Kiru approval failed");
+        // require(IERC20(WETH9).approve(address(positionManager), amount0Desired), "WETH9 approval failed");
+        // require(IERC20(kiru).approve(address(positionManager), amount1Desired), "Kiru approval failed");
 
         emit log("amount0Desired", amount0Desired);
         emit log("amount1Desired", amount1Desired);
@@ -168,18 +170,18 @@ contract Bond {
                 amount0Min: amount0Min,
                 amount1Min: amount1Min,
                 recipient: address(this),
-                deadline: block.timestamp
+                deadline: block.timestamp + 100000
             });
 
         /*
          * Add liquidity, then send remaining ETH to the position manager
          */
-        // (
-        //     uint256 tokenId,
-        //     uint128 liquidity,
-        //     uint256 amount0,
-        //     uint256 amount1
-        // ) = positionManager.mint(params);
+        (
+            uint256 tokenId,
+            uint128 liquidity,
+            uint256 amount0,
+            uint256 amount1
+        ) = positionManager.mint(params);
 
         // /*
         //  * Refund leftover ETH and tokens to the sender
