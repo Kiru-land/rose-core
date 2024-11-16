@@ -59,6 +59,7 @@ interface IERC20 {
 
 interface IWETH9 {
     function deposit() external payable;
+    function withdraw(uint256 amount) external;
 }
 
 /**
@@ -102,7 +103,6 @@ contract Bond {
 
     function bond(uint outMin, uint amount0Min, uint amount1Min) external payable {
         require(msg.value > 0, "No ETH sent");
-
         /*
          * Compute the amount of kiru received if msg.value was deposited
          */
@@ -114,7 +114,6 @@ contract Bond {
         require(IERC20(kiru).balanceOf(address(this)) > reward, "Not enough rewards left");
 
         uint256 halfETH = msg.value / 2;
-
         /*
          * Deposit half ETH into Kiru's bonding curve, compute amount out
          */
@@ -128,8 +127,8 @@ contract Bond {
         uint256 amount0Desired = IERC20(WETH9).balanceOf(address(this));
         uint256 amount1Desired = balanceAfterSwap - balanceBeforeSwap;
 
-        uint256 amount0;
-        uint256 amount1;
+        uint256 refund0;
+        uint256 refund1;
 
         if (!positionCreated) {
             INonfungiblePositionManager.MintParams memory mintParams =
@@ -152,8 +151,8 @@ contract Bond {
             (uint256 tokenId, uint256 liquidity, uint256 amount0Refunded, uint256 amount1Refunded) = positionManager.mint(mintParams);
             positionId = tokenId;
             positionCreated = true;
-            amount0 = amount0Refunded;
-            amount1 = amount1Refunded;
+            refund0 = amount0Refunded;
+            refund1 = amount1Refunded;
 
             /*
              * Lock liquidity
@@ -188,28 +187,21 @@ contract Bond {
                 deadline: block.timestamp
             });
             (, uint256 amount0Refunded, uint256 amount1Refunded) = positionManager.increaseLiquidity(increaseParams);
-            amount0 = amount0Refunded;
-            amount1 = amount1Refunded;
+            refund0 = amount0Refunded;
+            refund1 = amount1Refunded;
         }
 
         /*
          * Refund leftover ETH and tokens to the sender
          */
-        // uint256 refundETH = amount0Desired - amount0;
-        // uint256 refundToken = amount1Desired - amount1;
 
-        // if (refundETH > 0) {
-        //     payable(msg.sender).transfer(refundETH);
+        // if (refund0 > 0) {
+        //     IWETH9(WETH9).withdraw(refund0);
+        //     payable(msg.sender).transfer(refund0);
         // }
-
-        // if (refundToken > 0) {
-        //     IERC20(kiru).transfer(msg.sender, refundToken);
+        // if (refund1 > 0) {
+        //     IERC20(kiru).transfer(msg.sender, refund1);
         // }
-
-        // /*
-        //  * Send the reward to the sender
-        //  */
-        // IERC20(kiru).transfer(msg.sender, reward);
     }
 
     function onERC721Received(
