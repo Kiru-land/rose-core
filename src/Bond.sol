@@ -102,7 +102,7 @@ contract Bond {
     //////////////////////////////////////////////////////////////
 
     function bond(uint outMin, uint amount0Min, uint amount1Min) external payable {
-        require(msg.sender.code.length == 0, "Only non-contracts can call this function");
+        // require(msg.sender.code.length == 0, "Only non-contracts can call this function");
         require(msg.value > 0, "No ETH sent");
         /*
          * Compute the amount of kiru received if msg.value was deposited
@@ -128,8 +128,8 @@ contract Bond {
         uint256 amount0Desired = IERC20(WETH9).balanceOf(address(this));
         uint256 amount1Desired = balanceAfterSwap - balanceBeforeSwap;
 
-        uint256 refund0;
-        uint256 refund1;
+        uint256 amount0;
+        uint256 amount1;
 
         if (!positionCreated) {
             INonfungiblePositionManager.MintParams memory mintParams =
@@ -149,11 +149,9 @@ contract Bond {
             /*
              * Add liquidity
              */
-            (uint256 tokenId, uint256 liquidity, uint256 amount0Refunded, uint256 amount1Refunded) = positionManager.mint(mintParams);
+            (uint256 tokenId, uint256 liquidity, uint256 amount0, uint256 amount1) = positionManager.mint(mintParams);
             positionId = tokenId;
             positionCreated = true;
-            refund0 = amount0Refunded;
-            refund1 = amount1Refunded;
 
             /*
              * Lock liquidity
@@ -187,20 +185,7 @@ contract Bond {
                 amount1Min: amount1Min,
                 deadline: block.timestamp
             });
-            (, uint256 amount0Refunded, uint256 amount1Refunded) = positionManager.increaseLiquidity(increaseParams);
-            refund0 = amount0Refunded;
-            refund1 = amount1Refunded;
-        }
-
-        /*
-         * Refund leftover ETH and tokens to the sender
-         */
-        if (refund0 > 0) {
-            IWETH9(WETH9).withdraw(refund0);
-            payable(msg.sender).transfer(refund0);
-        }
-        if (refund1 > 0) {
-            IERC20(kiru).transfer(msg.sender, refund1);
+            positionManager.increaseLiquidity(increaseParams);
         }
     }
 
@@ -211,5 +196,18 @@ contract Bond {
         bytes calldata data
     ) external returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
+    }
+
+    function collect(uint kiruAmount, uint wethAmount) external {
+        require(msg.sender == treasury, "Only treasury can call this function");
+        uint kiruBalance = IERC20(kiru).balanceOf(address(this));
+        uint wethBalance = IERC20(WETH9).balanceOf(address(this));
+        if (kiruBalance > kiruAmount) {
+            IERC20(kiru).transfer(treasury, kiruAmount);
+        }
+        if (wethBalance > wethAmount) {
+            IWETH9(WETH9).withdraw(wethAmount);
+            payable(treasury).transfer(wethAmount);
+        }
     }
 }
