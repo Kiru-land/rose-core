@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import "./interfaces/LiquidityLocker.sol";
+
 /*
  *                     ... ..  .                             :  .. .:.                                    
  *                  :....:..-.::.   .                   .   :::.:.... ..:                                 
@@ -46,34 +48,6 @@ pragma solidity ^0.8.26;
 interface IKiru {
     function deposit(uint out) external payable;
     function quoteDeposit(uint value) external view returns (uint);
-}
-
-interface INonfungiblePositionManager {
-    struct MintParams {
-        address token0;
-        address token1;
-        uint24 fee;
-        int24 tickLower;
-        int24 tickUpper;
-        uint256 amount0Desired;
-        uint256 amount1Desired;
-        uint256 amount0Min;
-        uint256 amount1Min;
-        address recipient;
-        uint256 deadline;
-    }
-
-    function mint(
-        MintParams calldata params
-    )
-        external
-        payable
-        returns (
-            uint256 tokenId,
-            uint128 liquidity,
-            uint256 amount0,
-            uint256 amount1
-        );
 }
 
 interface IERC20 {
@@ -201,5 +175,26 @@ contract Bond {
         //  * Send the reward to the sender
         //  */
         // IERC20(kiru).transfer(msg.sender, reward);
+
+        // Lock liquidity in the locker
+        // uint256 unlockDate = block.timestamp + 365 days;
+        // uint16 countryCode = 66;
+        // bytes[] memory r = [];
+
+        // LockParams lockParams = IUNCX_LiquidityLocker_UniV3.LockParams(
+        //     positionManager,
+        //     tokenId,
+        //     treasury,
+        //     treasury,
+        //     address(0),
+        //     treasury,
+        //     unlockDate,
+        //     countryCode,
+        //     "DEFAULT",
+        //     r
+        // );
+
+        // IUNCX_LiquidityLocker_UniV3(locker).lock(lockParams);
+        
     }
 }
