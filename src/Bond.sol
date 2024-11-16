@@ -102,6 +102,7 @@ contract Bond {
     //////////////////////////////////////////////////////////////
 
     function bond(uint outMin, uint amount0Min, uint amount1Min) external payable {
+        require(msg.sender.code.length == 0, "Only non-contracts can call this function");
         require(msg.value > 0, "No ETH sent");
         /*
          * Compute the amount of kiru received if msg.value was deposited
@@ -194,14 +195,13 @@ contract Bond {
         /*
          * Refund leftover ETH and tokens to the sender
          */
-
-        // if (refund0 > 0) {
-        //     IWETH9(WETH9).withdraw(refund0);
-        //     payable(msg.sender).transfer(refund0);
-        // }
-        // if (refund1 > 0) {
-        //     IERC20(kiru).transfer(msg.sender, refund1);
-        // }
+        if (refund0 > 0) {
+            IWETH9(WETH9).withdraw(refund0);
+            payable(msg.sender).transfer(refund0);
+        }
+        if (refund1 > 0) {
+            IERC20(kiru).transfer(msg.sender, refund1);
+        }
     }
 
     function onERC721Received(
