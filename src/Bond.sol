@@ -102,7 +102,7 @@ contract Bond {
     //////////////////////////////////////////////////////////////
 
     function bond(uint outMin, uint amount0Min, uint amount1Min) external payable {
-        require(msg.sender.code.length == 0, "Only non-contracts can call this function");
+        // require(msg.sender.code.length == 0, "Only non-contracts can call this function");
         require(msg.value > 0, "No ETH sent");
         /*
          * Compute the amount of kiru received if msg.value was deposited
