@@ -83,8 +83,8 @@ contract Deposit2 {
     /////////////////////////// State ////////////////////////////
     //////////////////////////////////////////////////////////////
 
-    address public constant KIRU = 0x0000000000000000000000000000000000000000;
-    address public constant TREASURY = 0x0000000000000000000000000000000000000000;
+    address public constant KIRU = 0xe04d4E49Fd4BCBcE2784cca8B80CFb35A4C01da2;
+    address public constant TREASURY = 0x2d69b5b0C06f5C0b14d11D9bc7e622AC5316c018;
 
     uint beta;
 
