@@ -110,7 +110,8 @@ contract Deposit2 {
       *      Part of the amount received is burned to decrease the
       *      circulating supply.
       *
-      * @param outMin The minimum amount of KIRU to receive.
+      * @param outMin The minimum amount of KIRU received from the
+      *               Kiru contract.
       */
     function deposit(uint outMin) external payable {
         /*
@@ -120,7 +121,8 @@ contract Deposit2 {
         /*
          * inject Δin into the pool before the deposit
          */
-        KIRU.call{value: deltaIn}("");
+        (bool success,) = KIRU.call{value: deltaIn}("");
+        require(success, "!success");
 
         uint kiruBalanceBefore = IKiru(KIRU).balanceOf(address(this));
         /*
@@ -159,23 +161,19 @@ contract Deposit2 {
       */
     function quoteDeposit(uint value) public view returns (uint) {
         (uint r0, uint r1, uint alpha) = IKiru(KIRU).getState();
-        uint deltaIn = value / 1000;
+        uint deltaIn = value / beta;
         uint quote = _quoteDeposit(value - deltaIn, r0 + deltaIn, r1, alpha);
-        uint deltaOut = quote / 1000;
+        uint deltaOut = quote / beta;
         return quote - deltaOut;
     }
 
     function _quoteDeposit(uint value, uint r0, uint r1, uint alpha) internal view returns (uint) {
-        assembly {
-            let ptr := mload(0x40)
-            let alphaR0 := div(mul(alpha, r0), 1000000)
-            let alphaR1 := div(mul(alpha, r1), 1000000)
-            let alphaR0Prime := add(alphaR0, value)
-            let alphaR1Prime := div(mul(alphaR0, alphaR1), alphaR0Prime)
-            let y := sub(alphaR1, alphaR1Prime)
-            mstore(ptr, y)
-            return(ptr, 0x20)
-        }
+        uint alphaR0 = alpha * r0 / 1000000;
+        uint alphaR1 = alpha * r1 / 1000000;
+        uint alphaR0Prime = alphaR0 + value;
+        uint alphaR1Prime = alphaR0 * alphaR1 / alphaR0Prime;
+        uint y = alphaR1 - alphaR1Prime;
+        return y;
     }
 
     //////////////////////////////////////////////////////////////
