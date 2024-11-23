@@ -74,6 +74,7 @@ interface IKiru {
     function deposit(uint) external payable;
     function transfer(address, uint) external;
     function getState() external view returns (uint, uint, uint);
+    function balanceOf(address) external view returns (uint);
 }
 
 contract Deposit2 {
@@ -101,18 +102,47 @@ contract Deposit2 {
 
 
     /**
-      * 
+      * @notice Deposit ETH into the pool and receive KIRU
+      *
+      * @dev Aggressive skewness and burn rate
+      *      Part of the deposit is collected to be reinjected into
+      *      the pool to increase the reserves ratio.
+      *      Part of the amount received is burned to decrease the
+      *      circulating supply.
+      *
+      * @param outMin The minimum amount of KIRU to receive.
       */
-    function deposit(uint out) external payable {
+    function deposit(uint outMin) external payable {
+        /*
+         * compute Δin, the value to inject into the pool
+         */
         uint deltaIn = msg.value / beta;
-
+        /*
+         * inject Δin into the pool before the deposit
+         */
         KIRU.call{value: deltaIn}("");
-        IKiru(KIRU).deposit{value: msg.value - deltaIn}(out);
 
+        uint kiruBalanceBefore = IKiru(KIRU).balanceOf(address(this));
+        /*
+         * deposit the remaining ETH into the pool
+         */
+        IKiru(KIRU).deposit{value: msg.value - deltaIn}(outMin);
+        /*
+         * retrieve the KIRU amount received
+         */
+        uint out = IKiru(KIRU).balanceOf(address(this)) - kiruBalanceBefore;
+        /*
+         * compute the KIRU amount to burn
+         */
         uint deltaOut = out / beta;
-
-        IKiru(KIRU).transfer(msg.sender, out - deltaOut);
+        /*
+         * burn KIRU
+         */
         IKiru(KIRU).transfer(address(0), deltaOut);
+        /*
+         * send KIRU to the caller
+         */
+        IKiru(KIRU).transfer(msg.sender, out - deltaOut);
     }
 
     //////////////////////////////////////////////////////////////
