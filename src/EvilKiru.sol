@@ -8,6 +8,9 @@ pragma solidity ^0.8.26;
 
 interface IKiru {
     function deposit(uint) external payable;
+    function withdraw(uint, uint) external;
+    function quoteDeposit(uint) external view returns (uint);
+    function quoteWithdraw(uint) external view returns (uint);
 }
 
 interface IERC20 {
@@ -44,7 +47,8 @@ contract EvilKiru {
      */
     uint alpha;
 
-    address constant KIRU = 0xe04d4E49Fd4BCBcE2784cca8B80CFb35A4C01da2;
+    address public constant KIRU = 0xe04d4E49Fd4BCBcE2784cca8B80CFb35A4C01da2;
+    address public treasury = 0x2d69b5b0C06f5C0b14d11D9bc7e622AC5316c018;
 
     //////////////////////////////////////////////////////////////
     /////////////////////////// Events ///////////////////////////
@@ -59,10 +63,12 @@ contract EvilKiru {
     //////////////////////// Constructor /////////////////////////
     //////////////////////////////////////////////////////////////
 
-    constructor(uint _alpha, string memory _name, string memory _symbol) {
+    constructor(uint _alpha, uint256 _supply) {
         alpha = _alpha;
-        name = _name;
-        symbol = _symbol;
+        uint256 treasuryShare = _supply / 10;
+        _balanceOf[treasury] = treasuryShare;
+        _balanceOf[address(this)] = _supply - treasuryShare;
+        _totalSupply = _supply;
     }
 
     //////////////////////////////////////////////////////////////
@@ -70,7 +76,7 @@ contract EvilKiru {
     //////////////////////////////////////////////////////////////
 
     function deposit(uint outMin0, uint outMin1) external payable {
-        uint kiruBalance = IKiru(KIRU).balanceOf(address(this));
+        uint kiruBalance = IERC20(KIRU).balanceOf(address(this));
         /*
          * Deposit into Kiru
          */
@@ -78,12 +84,13 @@ contract EvilKiru {
         /*
          * Swap Kiru to EvilKiru
          */
-        uint x = IKiru(KIRU).balanceOf(address(this)) - kiruBalance;
-        uint r0 = kiruBalance - x;
+        uint kiruBalanceAfter = IERC20(KIRU).balanceOf(address(this));
+        uint x = kiruBalanceAfter - kiruBalance;
+        uint r0 = kiruBalanceAfter - x;
         uint r1 = _balanceOf[address(this)];
         uint phi = msg.value / alpha;
         uint r0Prime = r0 + x;
-        uint r1Prime = r0 * r1 / r0Prime - phi;
+        uint r1Prime = r0 * r1 * 1e18 / r0Prime / 1e18 - phi;
         uint y = r1 - r1Prime;
         require(y >= outMin1, "slippage bounds reached");
         _balanceOf[address(this)] -= phi;
@@ -102,14 +109,44 @@ contract EvilKiru {
         uint r0 = IERC20(KIRU).balanceOf(address(this));
         uint r1 = _balanceOf[address(this)];
         uint r1Prime = r1 + y;
-        uint r0Prime = r0 * r1 / r1Prime;
-        uint x = r0Prime - r0;
+        uint r0Prime = r0 * r1 * 1e18 / r1Prime / 1e18;
+        uint x = r0 - r0Prime;
+        x -= x / alpha;
         require(x >= outMin0, "slippage bounds reached");
         _balanceOf[msg.sender] -= y;
         _balanceOf[address(this)] = r1Prime;
-        x -= x / alpha;
+        uint balanceBefore = address(this).balance;
         IKiru(KIRU).withdraw(x, outMin1);
-        emit Withdraw(msg.sender, x, y);
+        uint balanceAfter = address(this).balance;
+        uint native = balanceAfter - balanceBefore;
+        (bool success, ) = msg.sender.call{value: native}("");
+        require(success, "failed to send native");
+        emit Withdraw(msg.sender, y, native);
+    }
+
+
+    //////////////////////////////////////////////////////////////
+    ////////////////////////// Quote /////////////////////////////
+    //////////////////////////////////////////////////////////////
+
+    function quoteDeposit(uint value) external view returns (uint x, uint y) {
+        x = IKiru(KIRU).quoteDeposit(value);
+        uint r0 = IERC20(KIRU).balanceOf(address(this));
+        uint r1 = _balanceOf[address(this)];
+        uint phi = value / alpha;
+        uint r0Prime = r0 + x;
+        uint r1Prime = r0 * r1 * 1e18 / r0Prime / 1e18 - phi;
+        y = r1 - r1Prime;
+    }
+
+    function quoteWithdraw(uint value) external view returns (uint outMin0, uint outMin1) {
+        uint r0 = IERC20(KIRU).balanceOf(address(this));
+        uint r1 = _balanceOf[address(this)];
+        uint r1Prime = r1 + value;
+        uint r0Prime = r0 * r1 * 1e18 / r1Prime / 1e18;
+        uint x = r0Prime - r0;
+        outMin0 = x - x / alpha;
+        outMin1 = IKiru(KIRU).quoteWithdraw(outMin0);
     }
 
     //////////////////////////////////////////////////////////////
@@ -147,4 +184,6 @@ contract EvilKiru {
         _balanceOf[address(0)] += amount;
         _totalSupply -= amount;
     }
+
+    receive() external payable {}
 }
