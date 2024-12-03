@@ -52,6 +52,7 @@ contract PressTheButton {
         require(msg.sender == MULTISIG,"Only multisig can start the window");
         require(!checkDuration(),"Window already open");
         speed = 0.001 ether;
+        bucket = msg.value;
         pressTime = block.timestamp;
     }
 
