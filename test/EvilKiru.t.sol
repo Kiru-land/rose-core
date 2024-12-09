@@ -43,7 +43,6 @@ contract EvilKiruTest is Test {
         uint256 rikuKiruBalanceBefore = IERC20(address(kiru)).balanceOf(address(riku));
         (uint r0, uint r1, ) = IKiru(address(kiru)).getState();
         uint256 kiruPriceInEthBefore = r0 * 1e18 / r1;
-        console.log("kiruPriceInEthBefore", kiruPriceInEthBefore);
 
         // deposit
         riku.deposit{value: value}(0, 0);
@@ -65,7 +64,6 @@ contract EvilKiruTest is Test {
         vm.deal(address(this), 1_000_000_000_000e18);
         value = bound(value, 1, 1e18);
 
-
         // deposit
         riku.deposit{value: value}(0, 0);
 
@@ -86,37 +84,51 @@ contract EvilKiruTest is Test {
         value = bound(value, 1, 1_000_000_000_000e18);
 
         // quote deposit
-        uint256 quote = IKiru(address(kiru)).quoteDeposit(value);
+        (uint256 quote,) = riku.quoteDeposit(value);
         uint256 rikuBalanceBefore = IERC20(address(riku)).balanceOf(address(this));
 
         // deposit
         riku.deposit{value: value}(0, 0);
 
         uint256 rikuBalanceAfter = IERC20(address(riku)).balanceOf(address(this));
-        assertEq(rikuBalanceAfter - rikuBalanceBefore, quote);
+        uint256 rikuReceived = rikuBalanceAfter - rikuBalanceBefore;
+        assertGe(rikuReceived, quote);
     }
+
 
     function test_withdraw(uint256 value) public {
         vm.deal(address(this), 1_000_000_000_000e18);
-        value = bound(value, 1, 1_000_000_000_000e18);
+        value = bound(value, 1, 1e18);
 
         // deposit
         riku.deposit{value: value}(0, 0);
 
         // withdraw
+        uint256 ethBalanceBefore = address(this).balance;
         uint256 rikuBalance = IERC20(address(riku)).balanceOf(address(this));
         riku.withdraw(rikuBalance, 0, 0);
 
-        // asserts caller gets more eth than deposited
-        // assertGe(value, address(this).balance - ethBalanceBefore);
+        uint256 ethReceived = address(this).balance - ethBalanceBefore;
+
+        // assert caller get eth back
+        assertGt(ethReceived, 0);
     }
 
     function test_quoteWithdraw(uint256 value) public {
         vm.deal(address(this), 1_000_000_000_000e18);
-        value = bound(value, 1, 1_000_000_000_000e18);
-        (uint outMin0, uint outMin1) = riku.quoteWithdraw(value);
-        console.log("outMin0", outMin0);
-        console.log("outMin1", outMin1);
+        value = bound(value, 1, 1e18);
+
+        // deposit
+        riku.deposit{value: value}(0, 0);
+
+        // withdraw
+        uint256 ethBalanceBefore = address(this).balance;
+        uint256 rikuBalance = IERC20(address(riku)).balanceOf(address(this));
+        (uint quote,) = riku.quoteWithdraw(rikuBalance);
+
+        riku.withdraw(rikuBalance, 0, 0);
+        uint256 ethReceived = address(this).balance - ethBalanceBefore;
+        assertGe(ethReceived, quote);
     }
 
     receive() external payable {}

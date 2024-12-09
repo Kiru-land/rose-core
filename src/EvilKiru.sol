@@ -144,7 +144,7 @@ contract EvilKiru {
         uint r1 = _balanceOf[address(this)];
         uint r1Prime = r1 + value;
         uint r0Prime = r0 * r1 * 1e18 / r1Prime / 1e18;
-        uint x = r0Prime - r0;
+        uint x = r0 - r0Prime;
         outMin0 = x - x / alpha;
         outMin1 = IKiru(KIRU).quoteWithdraw(outMin0);
     }
