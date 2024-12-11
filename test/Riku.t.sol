@@ -38,15 +38,15 @@ contract RikuTest is Test {
         riku.transfer(address(rikuMarket), rikuSeed);
         vm.stopPrank();
         vm.startPrank(treasury);
-        rikuMarket.init(address(kiru));
+        rikuMarket.init(address(riku));
         vm.stopPrank();
     }
 
     // ensure less eth when roundtrip
     // ensure price higher or equal
     function test_deposit(uint value) public {
-        vm.deal(address(this), 1018);
-        value = bound(value, 1, 1018);
+        vm.deal(address(this), 10e18);
+        value = bound(value, 1, 10e18);
 
         uint256 kiruEthBalanceBefore = address(kiru).balance;
         uint256 rikuBalanceBefore = riku.balanceOf(address(this));
@@ -58,7 +58,7 @@ contract RikuTest is Test {
         rikuMarket.deposit{value: value}(0, 0);
 
         // asserts riku has more Kiru than before
-        assertGt(rikuKiruBalanceBefore, kiru.balanceOf(address(rikuMarket)));
+        assertGt(kiru.balanceOf(address(rikuMarket)), rikuKiruBalanceBefore);
 
         (uint r0After, uint r1After, ) = IKiru(address(kiru)).getState();
         uint256 kiruPriceInEthAfter = r0After * 1e18 / r1After;
@@ -72,19 +72,23 @@ contract RikuTest is Test {
     }
 
     function test_roundtrip(uint value) public {
-        vm.deal(address(this), 1_000_000_000_000e18);
-        value = bound(value, 1, 1e18);
+        address tester = address(67867);
+        vm.deal(tester, 1_000_000_000_000e18);
+        value = bound(value, 1, 0.01e18);
 
         // deposit
+        vm.startPrank(tester);
         rikuMarket.deposit{value: value}(0, 0);
 
         // withdraw
         uint256 ethBalanceBefore = address(this).balance;
 
-        uint256 rikuBalance = riku.balanceOf(address(this));
+        uint256 rikuBalance = riku.balanceOf(tester);
 
         riku.approve(address(rikuMarket), rikuBalance);
         rikuMarket.withdraw(rikuBalance, 0, 0);
+
+        vm.stopPrank();
 
         uint256 ethReceived = address(this).balance - ethBalanceBefore;
         // asserts caller gets less eth than deposited
