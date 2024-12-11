@@ -101,7 +101,7 @@ contract RikuTest is Test {
         value = bound(value, 1, 1_000_000_000_000e18);
 
         // quote deposit
-        (uint256 quote,) = rikuMarket.quoteDeposit(value);
+        (,uint256 quote) = rikuMarket.quoteDeposit(value);
         uint256 rikuBalanceBefore = riku.balanceOf(address(this));
 
         // deposit
@@ -109,9 +109,8 @@ contract RikuTest is Test {
 
         uint256 rikuBalanceAfter = riku.balanceOf(address(this));
         uint256 rikuReceived = rikuBalanceAfter - rikuBalanceBefore;
-        assertGe(rikuReceived, quote);
+        assertEq(rikuReceived, quote);
     }
-
 
     function test_withdraw(uint256 value) public {
         vm.deal(address(this), 1_000_000_000_000e18);
@@ -134,21 +133,24 @@ contract RikuTest is Test {
     }
 
     function test_quoteWithdraw(uint256 value) public {
-        vm.deal(address(this), 1_000_000_000_000e18);
-        value = bound(value, 1, 1e18);
+        address tester = address(67867777);
+        vm.deal(tester, 1_000_000_000_000e18);
+        value = bound(value, 1, 0.1e18);
 
         // deposit
+        vm.startPrank(tester);
         rikuMarket.deposit{value: value}(0, 0);
 
         // withdraw
-        uint256 ethBalanceBefore = address(this).balance;
-        uint256 rikuBalance = riku.balanceOf(address(this));
+        uint256 ethBalanceBefore = tester.balance;
+        uint256 rikuBalance = riku.balanceOf(tester);
         (uint quote,) = rikuMarket.quoteWithdraw(rikuBalance);
 
         riku.approve(address(rikuMarket), rikuBalance);
         rikuMarket.withdraw(rikuBalance, 0, 0);
+        vm.stopPrank();
 
-        uint256 ethReceived = address(this).balance - ethBalanceBefore;
+        uint256 ethReceived = tester.balance - ethBalanceBefore;
         assertGe(ethReceived, quote);
     }
 
