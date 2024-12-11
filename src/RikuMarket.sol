@@ -155,4 +155,6 @@ contract RikuMarket {
         outMin0 = x - x / alpha;
         outMin1 = IKiru(KIRU).quoteWithdraw(outMin0);
     }
+
+    receive() external payable {}
 }
